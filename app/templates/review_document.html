@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Review: {{ document.original_filename }} — MBR Extractor{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.5rem;">
+  <a href="/review" class="btn btn-outline btn-sm">← Back to Dashboard</a>
+</div>
+
+<h1>{{ document.original_filename }}</h1>
+<div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center;">
+  <span class="badge {{ document.status }}">{{ document.status }}</span>
+  <span style="color: var(--text-muted); font-size: 0.85rem;">
+    ID: <code style="color: var(--accent);">{{ document.id }}</code>
+  </span>
+  <span style="color: var(--text-muted); font-size: 0.85rem;">
+    Pages: {{ document.total_pages or '—' }}
+  </span>
+  {% if document.status in ['completed', 'failed'] %}
+  <a href="/data/{{ document.id }}" class="btn btn-primary btn-sm">📊 View Data</a>
+  <a href="/documents/{{ document.id }}/export/csv" class="btn btn-outline btn-sm">⬇ Download CSV</a>
+  <a href="/documents/{{ document.id }}/raw" class="btn btn-outline btn-sm" target="_blank">Raw JSON</a>
+  <a href="/documents/{{ document.id }}/normalized" class="btn btn-outline btn-sm" target="_blank">Normalized JSON</a>
+  {% endif %}
+</div>
+
+{% if document.error_message %}
+<div class="card" style="border-color: var(--danger);">
+  <h3 class="error-text">Error</h3>
+  <p class="error-text">{{ document.error_message }}</p>
+</div>
+{% endif %}
+
+<!-- Filters -->
+<div class="filter-bar">
+  <span style="font-weight: 600; font-size: 0.85rem; color: var(--text-muted);">Filter:</span>
+  <a href="/review/{{ document.id }}" class="btn btn-sm {% if not status_filter and not review_filter %}btn-primary{% else %}btn-outline{% endif %}">All</a>
+  <a href="/review/{{ document.id }}?status=completed" class="btn btn-sm {% if status_filter == 'completed' %}btn-primary{% else %}btn-outline{% endif %}">✓ Completed</a>
+  <a href="/review/{{ document.id }}?status=failed" class="btn btn-sm {% if status_filter == 'failed' %}btn-primary{% else %}btn-outline{% endif %}">✗ Failed</a>
+  <a href="/review/{{ document.id }}?review=flagged" class="btn btn-sm {% if review_filter == 'flagged' %}btn-primary{% else %}btn-outline{% endif %}">⚠ Needs Review</a>
+</div>
+
+<!-- Pages -->
+{% if pages %}
+{% for page in pages %}
+<div class="page-section">
+  <div class="page-header">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <h3 style="margin: 0;">Page {{ page.page_number }}</h3>
+      <span class="badge {{ page.status }}">{{ page.status }}</span>
+      {% if page.normalized_data %}
+        {% set review_count = page.normalized_data.rows | selectattr('needs_review') | list | length %}
+        {% if review_count > 0 %}
+        <span class="badge-review">⚠ {{ review_count }} flagged</span>
+        {% endif %}
+      {% endif %}
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+      {% if page.raw_data %}
+      <span class="collapsible-toggle" onclick="toggleCollapsible('raw-{{ page.page_number }}')">Raw JSON</span>
+      {% endif %}
+      {% if page.image_url %}
+      <span class="collapsible-toggle" onclick="toggleCollapsible('img-{{ page.page_number }}')">Image</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="page-body">
+    {% if page.error_message %}
+    <div style="margin-bottom: 1rem;">
+      <p class="error-text">Error: {{ page.error_message }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Image collapsible -->
+    {% if page.image_url %}
+    <div id="img-{{ page.page_number }}" class="collapsible-content" style="margin-bottom: 1rem;">
+      <img src="{{ page.image_url }}" alt="Page {{ page.page_number }}" class="page-image" loading="lazy">
+    </div>
+    {% endif %}
+
+    <!-- Raw JSON collapsible -->
+    {% if page.raw_data %}
+    <div id="raw-{{ page.page_number }}" class="collapsible-content" style="margin-bottom: 1rem;">
+      <h3>Raw Gemini Response</h3>
+      <div class="json-block">{{ page.raw_data }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Extracted rows table -->
+    {% if page.normalized_data and page.normalized_data.rows %}
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Row</th>
+            <th>Parameter</th>
+            <th>Target</th>
+            <th>Actual</th>
+            <th>Units</th>
+            <th>Comments</th>
+            <th>Performed</th>
+            <th>Verified</th>
+            <th>Conf.</th>
+            <th>Review</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in page.normalized_data.rows %}
+          <tr{% if row.needs_review %} style="background: #f59e0b08;"{% endif %}>
+            <td>{{ row.row_id or '—' }}</td>
+            <td>{{ row.parameter_label or '—' }}</td>
+            <td>{{ row.target_value or '—' }}</td>
+            <td>{{ row.actual_value or '—' }}</td>
+            <td>{{ row.units or '—' }}</td>
+            <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ row.comments or '' }}">{{ row.comments or '—' }}</td>
+            <td>{{ row.performed_by_initials or '?' }} {{ row.performed_date or '' }}</td>
+            <td>{{ row.verified_by_initials or '?' }} {{ row.verified_date or '' }}</td>
+            <td>{{ '%.0f' | format(row.extraction_confidence * 100) }}%</td>
+            <td>
+              {% if row.needs_review %}
+              <span class="badge-review">⚠ Yes</span>
+              {% else %}
+              <span style="color: var(--success); font-size: 0.8rem;">✓</span>
+              {% endif %}
+            </td>
+            <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ row.reviewer_notes or '' }}">{{ row.reviewer_notes or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% elif page.status == 'completed' %}
+    <p style="color: var(--text-muted); font-size: 0.85rem;">No rows extracted from this page.</p>
+    {% elif page.status == 'failed' %}
+    <p class="error-text">Extraction failed — see error above or inspect raw JSON.</p>
+    {% else %}
+    <p style="color: var(--text-muted); font-size: 0.85rem;">Page has not been processed yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+  <p>No pages match the current filter.</p>
+</div>
+{% endif %}
+{% endblock %}

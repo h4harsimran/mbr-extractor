@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — MBR Extractor{% endblock %}
+
+{% block content %}
+<h1>📋 Documents</h1>
+
+<!-- Upload card -->
+<div class="card">
+  <h2>Upload New PDF</h2>
+  <form id="uploadForm" enctype="multipart/form-data">
+    <div class="form-group">
+      <label for="file">Select Master Batch Record (PDF)</label>
+      <input type="file" id="file" name="file" accept=".pdf" required>
+    </div>
+    <button type="submit" class="btn btn-primary">⬆ Upload</button>
+    <span id="uploadStatus" style="margin-left: 1rem; font-size: 0.85rem; color: var(--text-muted);"></span>
+  </form>
+</div>
+
+<!-- Documents table -->
+{% if documents %}
+<div class="card" style="padding: 0; overflow: hidden;">
+  <table>
+    <thead>
+      <tr>
+        <th>Document ID</th>
+        <th>Filename</th>
+        <th>Pages</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for doc in documents %}
+      <tr>
+        <td style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">{{ doc.id }}</td>
+        <td>{{ doc.original_filename }}</td>
+        <td>{{ doc.total_pages or '—' }}</td>
+        <td><span class="badge {{ doc.status }}">{{ doc.status }}</span></td>
+        <td style="color: var(--text-muted); font-size: 0.8rem;">{{ doc.created_at[:19] }}</td>
+        <td>
+          <a href="/review/{{ doc.id }}" class="btn btn-outline btn-sm">Review</a>
+          {% if doc.status == 'uploaded' %}
+          <button class="btn btn-primary btn-sm" onclick="processDoc('{{ doc.id }}')">▶ Process</button>
+          {% endif %}
+          {% if doc.status in ['completed', 'failed'] %}
+          <a href="/data/{{ doc.id }}" class="btn btn-primary btn-sm">📊 View Data</a>
+          <a href="/documents/{{ doc.id }}/export/csv" class="btn btn-outline btn-sm">⬇ CSV</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <p>No documents uploaded yet. Use the form above to get started.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const status = document.getElementById('uploadStatus');
+    const fileInput = document.getElementById('file');
+    if (!fileInput.files.length) return;
+
+    status.textContent = 'Uploading…';
+    status.style.color = 'var(--warning)';
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    try {
+      const res = await fetch('/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.ok) {
+        status.textContent = `✓ Uploaded — ID: ${data.document_id}`;
+        status.style.color = 'var(--success)';
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        status.textContent = `✗ ${data.detail || 'Upload failed'}`;
+        status.style.color = 'var(--danger)';
+      }
+    } catch (err) {
+      status.textContent = `✗ ${err.message}`;
+      status.style.color = 'var(--danger)';
+    }
+  });
+
+  async function processDoc(docId) {
+    if (!confirm('Start processing this document?')) return;
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Processing…';
+
+    try {
+      const res = await fetch(`/process/${docId}`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`Done! ${data.pages_succeeded}/${data.pages_processed} pages succeeded, ${data.total_rows_extracted} rows extracted.`);
+        location.reload();
+      } else {
+        alert(`Error: ${data.detail || 'Processing failed'}`);
+        btn.disabled = false;
+        btn.textContent = '▶ Process';
+      }
+    } catch (err) {
+      alert(`Error: ${err.message}`);
+      btn.disabled = false;
+      btn.textContent = '▶ Process';
+    }
+  }
+</script>
+{% endblock %}

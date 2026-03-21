@@ -1,0 +1,7 @@
+.agent
+.planning
+.venv
+.pytest_cache
+.env
+__pycache__
+data

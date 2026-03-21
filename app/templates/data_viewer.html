@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}Data Viewer: {{ document.original_filename }} — MBR Extractor{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center;">
+  <a href="/review" class="btn btn-outline btn-sm">← Dashboard</a>
+  <a href="/review/{{ document.id }}" class="btn btn-outline btn-sm">Review View</a>
+</div>
+
+<h1 style="display: flex; align-items: center; gap: 1rem;">
+  📊 Data Viewer
+  <span style="font-size: 0.9rem; font-weight: 400; color: var(--text-muted);">{{ document.original_filename }}</span>
+</h1>
+
+<!-- Toolbar -->
+<div class="card" id="toolbar">
+  <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-start;">
+
+    <!-- Column toggles -->
+    <div style="flex: 1; min-width: 280px;">
+      <h3 style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 0.5rem;">Visible Columns</h3>
+      <div id="columnToggles" style="display: flex; flex-wrap: wrap; gap: 0.35rem;"></div>
+    </div>
+
+    <!-- Filters -->
+    <div style="flex: 1; min-width: 280px;">
+      <h3 style="font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; margin-bottom: 0.5rem;">Filters</h3>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;">
+        <input type="text" id="searchInput" placeholder="Search all fields…"
+          style="background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.75rem; color: var(--text); font-size: 0.82rem; width: 180px; font-family: var(--font);">
+
+        <select id="pageFilter" style="width: 120px;">
+          <option value="">All pages</option>
+        </select>
+
+        <select id="reviewFilter" style="width: 140px;">
+          <option value="">All rows</option>
+          <option value="true">⚠ Needs review</option>
+          <option value="false">✓ No issues</option>
+        </select>
+
+        <button class="btn btn-outline btn-sm" onclick="resetFilters()">Reset</button>
+      </div>
+    </div>
+
+    <!-- Stats & actions -->
+    <div style="min-width: 180px; text-align: right;">
+      <div id="rowCount" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;"></div>
+      <a href="/documents/{{ document.id }}/export/csv" class="btn btn-primary btn-sm">⬇ Download CSV</a>
+    </div>
+  </div>
+</div>
+
+<!-- Data table -->
+<div class="card" style="padding: 0; overflow: hidden;">
+  <div style="overflow-x: auto; max-height: 75vh; overflow-y: auto;">
+    <table id="dataTable">
+      <thead id="tableHead" style="position: sticky; top: 0; z-index: 10;"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="noData" class="empty-state" style="display: none;">
+  <p>No extracted data available for this document.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  /* Column toggle chips */
+  .col-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .col-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .col-chip:hover { border-color: var(--accent-hover); }
+
+  /* Sortable headers */
+  #dataTable th {
+    cursor: pointer;
+    white-space: nowrap;
+    position: relative;
+    padding-right: 1.3rem;
+    background: var(--surface-2);
+  }
+  #dataTable th:hover { color: var(--accent); }
+  #dataTable th .sort-icon {
+    position: absolute;
+    right: 0.3rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    opacity: 0.4;
+  }
+  #dataTable th.sort-asc .sort-icon,
+  #dataTable th.sort-desc .sort-icon { opacity: 1; color: var(--accent); }
+
+  /* highlight flagged rows */
+  tr.flagged { background: rgba(245, 158, 11, 0.06) !important; }
+  tr.flagged:hover td { background: rgba(245, 158, 11, 0.1) !important; }
+
+  /* confidence bar */
+  .conf-bar {
+    display: inline-block;
+    width: 45px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    overflow: hidden;
+    vertical-align: middle;
+    margin-right: 0.3rem;
+  }
+  .conf-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+</style>
+
+<script>
+const ALL_COLUMNS = [
+  { key: "page_number", label: "Page", defaultOn: true },
+  { key: "row_id", label: "Row ID", defaultOn: true },
+  { key: "parameter_label", label: "Parameter", defaultOn: true },
+  { key: "target_value", label: "Target", defaultOn: true },
+  { key: "actual_value", label: "Actual", defaultOn: true },
+  { key: "units", label: "Units", defaultOn: true },
+  { key: "comments", label: "Comments", defaultOn: true },
+  { key: "performed_by_initials", label: "Performed By", defaultOn: true },
+  { key: "performed_date", label: "Performed Date", defaultOn: false },
+  { key: "verified_by_initials", label: "Verified By", defaultOn: true },
+  { key: "verified_date", label: "Verified Date", defaultOn: false },
+  { key: "extraction_confidence", label: "Confidence", defaultOn: true },
+  { key: "needs_review", label: "Review", defaultOn: true },
+  { key: "reviewer_notes", label: "Notes", defaultOn: false },
+  { key: "source_image_path", label: "Image Path", defaultOn: false },
+];
+
+let allRows = [];
+let visibleCols = new Set(ALL_COLUMNS.filter(c => c.defaultOn).map(c => c.key));
+let sortCol = null;
+let sortDir = "asc";
+
+// ── Load data ────────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const res = await fetch("/documents/{{ document.id }}/normalized");
+    const data = await res.json();
+    const pages = data.pages || [];
+
+    allRows = [];
+    const pageSet = new Set();
+    for (const page of pages) {
+      const pageData = page.data || {};
+      const rows = pageData.rows || [];
+      for (const row of rows) {
+        allRows.push(row);
+        pageSet.add(row.page_number);
+      }
+    }
+
+    // Populate page filter
+    const pageFilter = document.getElementById("pageFilter");
+    [...pageSet].sort((a,b) => a - b).forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = `Page ${p}`;
+      pageFilter.appendChild(opt);
+    });
+
+    if (allRows.length === 0) {
+      document.getElementById("noData").style.display = "block";
+    }
+
+    renderColumnToggles();
+    renderTable();
+  } catch (err) {
+    console.error("Failed to load data:", err);
+    document.getElementById("noData").style.display = "block";
+    document.getElementById("noData").querySelector("p").textContent = "Failed to load data: " + err.message;
+  }
+}
+
+// ── Column toggles ──────────────────────────────────────────────
+function renderColumnToggles() {
+  const container = document.getElementById("columnToggles");
+  container.innerHTML = "";
+  for (const col of ALL_COLUMNS) {
+    const chip = document.createElement("span");
+    chip.className = "col-chip" + (visibleCols.has(col.key) ? " active" : "");
+    chip.textContent = col.label;
+    chip.onclick = () => {
+      if (visibleCols.has(col.key)) {
+        if (visibleCols.size <= 1) return; // keep at least 1
+        visibleCols.delete(col.key);
+      } else {
+        visibleCols.add(col.key);
+      }
+      chip.classList.toggle("active");
+      renderTable();
+    };
+    container.appendChild(chip);
+  }
+}
+
+// ── Filter logic ────────────────────────────────────────────────
+function getFilteredRows() {
+  const search = document.getElementById("searchInput").value.toLowerCase();
+  const pageVal = document.getElementById("pageFilter").value;
+  const reviewVal = document.getElementById("reviewFilter").value;
+
+  return allRows.filter(row => {
+    // Page filter
+    if (pageVal && String(row.page_number) !== pageVal) return false;
+
+    // Review filter
+    if (reviewVal === "true" && !row.needs_review) return false;
+    if (reviewVal === "false" && row.needs_review) return false;
+
+    // Text search
+    if (search) {
+      const haystack = ALL_COLUMNS.map(c => String(row[c.key] ?? "")).join(" ").toLowerCase();
+      if (!haystack.includes(search)) return false;
+    }
+
+    return true;
+  });
+}
+
+function sortRows(rows) {
+  if (!sortCol) return rows;
+  return [...rows].sort((a, b) => {
+    let va = a[sortCol] ?? "";
+    let vb = b[sortCol] ?? "";
+    if (sortCol === "extraction_confidence" || sortCol === "page_number") {
+      va = Number(va) || 0;
+      vb = Number(vb) || 0;
+    } else {
+      va = String(va).toLowerCase();
+      vb = String(vb).toLowerCase();
+    }
+    if (va < vb) return sortDir === "asc" ? -1 : 1;
+    if (va > vb) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
+}
+
+// ── Render ───────────────────────────────────────────────────────
+function renderTable() {
+  const cols = ALL_COLUMNS.filter(c => visibleCols.has(c.key));
+  const filtered = sortRows(getFilteredRows());
+
+  // Header
+  const thead = document.getElementById("tableHead");
+  thead.innerHTML = "<tr>" + cols.map(c => {
+    let cls = "";
+    let icon = "↕";
+    if (sortCol === c.key) {
+      cls = sortDir === "asc" ? "sort-asc" : "sort-desc";
+      icon = sortDir === "asc" ? "▲" : "▼";
+    }
+    return `<th class="${cls}" data-col="${c.key}">${c.label}<span class="sort-icon">${icon}</span></th>`;
+  }).join("") + "</tr>";
+
+  // Click handlers for sorting
+  thead.querySelectorAll("th").forEach(th => {
+    th.onclick = () => {
+      const col = th.dataset.col;
+      if (sortCol === col) {
+        sortDir = sortDir === "asc" ? "desc" : "asc";
+      } else {
+        sortCol = col;
+        sortDir = "asc";
+      }
+      renderTable();
+    };
+  });
+
+  // Body
+  const tbody = document.getElementById("tableBody");
+  tbody.innerHTML = filtered.map(row => {
+    const trClass = row.needs_review ? "flagged" : "";
+    const cells = cols.map(c => `<td>${formatCell(c.key, row[c.key])}</td>`).join("");
+    return `<tr class="${trClass}">${cells}</tr>`;
+  }).join("");
+
+  // Row count
+  document.getElementById("rowCount").textContent =
+    `Showing ${filtered.length} of ${allRows.length} rows`;
+}
+
+function formatCell(key, value) {
+  if (value === null || value === undefined) return '<span style="color:var(--text-muted)">—</span>';
+
+  if (key === "extraction_confidence") {
+    const pct = (Number(value) * 100).toFixed(0);
+    const color = value >= 0.9 ? "var(--success)" : value >= 0.7 ? "var(--warning)" : "var(--danger)";
+    return `<span class="conf-bar"><span class="conf-bar-fill" style="width:${pct}%;background:${color}"></span></span>${pct}%`;
+  }
+
+  if (key === "needs_review") {
+    return value ? '<span class="badge-review">⚠ Yes</span>' : '<span style="color:var(--success);font-size:0.8rem">✓</span>';
+  }
+
+  if (key === "source_image_path") {
+    return `<span style="font-size:0.72rem;color:var(--text-muted)" title="${value}">…${String(value).slice(-25)}</span>`;
+  }
+
+  const str = String(value);
+  if (str.length > 60) {
+    return `<span title="${str.replace(/"/g, '&quot;')}">${str.slice(0, 57)}…</span>`;
+  }
+  return str;
+}
+
+function resetFilters() {
+  document.getElementById("searchInput").value = "";
+  document.getElementById("pageFilter").value = "";
+  document.getElementById("reviewFilter").value = "";
+  sortCol = null;
+  sortDir = "asc";
+  renderTable();
+}
+
+// Listen to filter changes
+document.getElementById("searchInput").addEventListener("input", () => renderTable());
+document.getElementById("pageFilter").addEventListener("change", () => renderTable());
+document.getElementById("reviewFilter").addEventListener("change", () => renderTable());
+
+// Init
+loadData();
+</script>
+{% endblock %}
