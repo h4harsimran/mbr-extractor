@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # Paths
     data_dir: str = "data"
     db_path: str = "data/mbr_extractor.db"
+    database_url: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

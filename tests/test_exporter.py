@@ -12,9 +12,9 @@ import pytest
 # We need to set up a test environment before importing app modules
 @pytest.fixture(autouse=True)
 def _setup_env(tmp_path, monkeypatch):
-    """Point data directories to temp for test isolation."""
+    """Point data directories to temp for test isolation and mock DB."""
     monkeypatch.setenv("DATA_DIR", str(tmp_path / "data"))
-    monkeypatch.setenv("DB_PATH", str(tmp_path / "data" / "test.db"))
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/db")
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
 
     # Re-import with patched env
@@ -25,9 +25,14 @@ def _setup_env(tmp_path, monkeypatch):
     monkeypatch.setattr("app.utils.settings", test_settings)
     monkeypatch.setattr("app.exporter.settings", test_settings)
 
-    # Init DB
-    from app.db import init_db
-    init_db()
+    # Mock DB functions to avoid hitting real Postgres
+    monkeypatch.setattr("app.db.init_db", lambda: None)
+    monkeypatch.setattr("app.db.create_document", lambda id, fn: {"id": id, "original_filename": fn})
+    monkeypatch.setattr("app.db.get_document", lambda id: {"id": id, "original_filename": "batch_record.pdf"} if id == "test_doc_001" else {"id": id, "original_filename": "empty.pdf"})
+    monkeypatch.setattr("app.db.create_page", lambda doc_id, num, img: 1)
+    monkeypatch.setattr("app.db.update_page", lambda id, **kw: None)
+    # get_pages needs to return a list of dicts for the exporter
+    monkeypatch.setattr("app.db.get_pages", lambda doc_id: [{"page_number": 1, "normalized_json_path": str(tmp_path / "data" / "normalized_json" / doc_id / "page_0001_normalized.json")}] if doc_id == "test_doc_001" else [])
 
     yield test_settings
 
