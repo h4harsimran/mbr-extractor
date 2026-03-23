@@ -208,6 +208,7 @@ async function saveRow(pageNum, rowIdx) {
   try {
     const res = await fetch(`/api/documents/${docId}/pages/${pageNum}/rows/${rowIdx}`, {
       method: 'PUT',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });

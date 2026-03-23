@@ -381,6 +381,13 @@ def data_viewer(request: Request, document_id: str):
     doc = db.get_document(document_id)
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
+    return templates.TemplateResponse(
+        request=request,
+        name="data_viewer.html",
+        context={"document": doc},
+        headers=_HTML_NO_STORE_HEADERS,
+    )
+
 
 # ── Products & Batches (Advanced UI) ────────────────────────────────
 

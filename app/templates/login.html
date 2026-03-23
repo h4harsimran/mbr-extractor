@@ -90,8 +90,9 @@ async function signIn() {
       return;
     }
 
-    // Set token as cookie
-    document.cookie = `access_token=${data.access_token}; path=/; max-age=${data.expires_in || 3600}; SameSite=Lax`;
+    // Set token as cookie (Secure on HTTPS so browsers reliably send it on Render, etc.)
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = `access_token=${data.access_token}; path=/; max-age=${data.expires_in || 3600}; SameSite=Lax${secure}`;
 
     // Redirect to dashboard
     window.location.href = '/products';
