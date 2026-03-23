@@ -52,6 +52,9 @@ app.add_middleware(AuthMiddleware)
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+# Avoid stale HTML after uploads (BFCache / intermediaries) on hosted deployments.
+_HTML_NO_STORE_HEADERS = {"Cache-Control": "no-store, max-age=0, must-revalidate"}
+
 
 # ── Public routes ───────────────────────────────────────────────────
 
@@ -293,6 +296,7 @@ def review_dashboard(request: Request):
         request=request,
         name="review_dashboard.html",
         context={"documents": docs},
+        headers=_HTML_NO_STORE_HEADERS,
     )
 
 
@@ -365,6 +369,7 @@ def review_document(request: Request, document_id: str, status: str = "", review
             "status_filter": status,
             "review_filter": review,
         },
+        headers=_HTML_NO_STORE_HEADERS,
     )
 
 
