@@ -20,7 +20,7 @@
 
 <!-- Documents table -->
 {% if documents %}
-<div class="card" style="padding: 0; overflow: hidden;">
+<div class="card" style="padding: 0; overflow-x: auto;">
   <table>
     <thead>
       <tr>
@@ -42,10 +42,11 @@
         <td style="color: var(--text-muted); font-size: 0.8rem;">{{ doc.created_at[:19] }}</td>
         <td>
           <a href="/review/{{ doc.id }}" class="btn btn-outline btn-sm">Review</a>
-          {% if doc.status and doc.status|lower|trim == 'uploaded' %}
+          {% set st = (doc.status | default('', true) | string | lower | trim) %}
+          {% if st in ['uploaded', 'pending'] %}
           <button type="button" class="btn btn-primary btn-sm" onclick="processDoc(event, '{{ doc.id }}')">▶ Process</button>
           {% endif %}
-          {% if doc.status in ['completed', 'failed'] %}
+          {% if st in ['completed', 'failed'] %}
           <a href="/data/{{ doc.id }}" class="btn btn-primary btn-sm">📊 View Data</a>
           <a href="/documents/{{ doc.id }}/export/csv" class="btn btn-outline btn-sm">⬇ CSV</a>
           {% endif %}
@@ -77,7 +78,7 @@
     formData.append('file', fileInput.files[0]);
 
     try {
-      const res = await fetch('/upload', { method: 'POST', body: formData });
+      const res = await fetch('/upload', { method: 'POST', body: formData, credentials: 'include' });
       const data = await res.json();
       if (res.ok) {
         status.textContent = `✓ Uploaded — ID: ${data.document_id}`;
@@ -103,7 +104,7 @@
     btn.textContent = '⏳ Processing…';
 
     try {
-      const res = await fetch(`/process/${docId}`, { method: 'POST' });
+      const res = await fetch(`/process/${docId}`, { method: 'POST', credentials: 'include' });
       const data = await res.json();
       if (res.ok) {
         alert(`Done! ${data.pages_succeeded}/${data.pages_processed} pages succeeded, ${data.total_rows_extracted} rows extracted.`);

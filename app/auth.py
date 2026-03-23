@@ -2,9 +2,9 @@
 
 import jwt
 import logging
-from fastapi import Request, HTTPException
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import RedirectResponse
+from starlette.responses import JSONResponse, RedirectResponse
 
 from app.config import settings
 
@@ -13,6 +13,17 @@ logger = logging.getLogger(__name__)
 # Paths that don't require authentication
 PUBLIC_PATHS = {"/login", "/health", "/docs", "/openapi.json", "/redoc"}
 PUBLIC_PREFIXES = ("/static",)
+
+
+def _browser_prefers_html(request: Request) -> bool:
+    """Detect full-document navigations vs fetch/XHR (case-insensitive Accept, Fetch Metadata)."""
+    accept = (request.headers.get("accept") or "").lower()
+    if "text/html" in accept:
+        return True
+    dest = (request.headers.get("sec-fetch-dest") or "").lower()
+    if dest in ("document", "iframe"):
+        return True
+    return False
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -50,14 +61,18 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 token = auth_header[7:]
 
         if not token:
-            # Redirect browser requests to login, reject API requests
-            if "text/html" in request.headers.get("accept", ""):
+            # Redirect browser navigations; return JSON for fetch/XHR (do not raise HTTPException
+            # from middleware — Starlette/FastAPI may not convert it cleanly to a response).
+            if _browser_prefers_html(request):
                 return RedirectResponse("/login")
-            raise HTTPException(status_code=401, detail="Not authenticated")
+            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
 
         try:
             if not self.jwks_client:
-                raise HTTPException(status_code=500, detail="Auth not configured correctly")
+                return JSONResponse(
+                    {"detail": "Auth not configured correctly"},
+                    status_code=500,
+                )
             
             # 1. Get the specific public key used to sign this token
             signing_key = self.jwks_client.get_signing_key_from_jwt(token)
@@ -75,18 +90,20 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.user_email = payload.get("email", "")
             
         except jwt.ExpiredSignatureError:
-            if "text/html" in request.headers.get("accept", ""):
+            if _browser_prefers_html(request):
                 return RedirectResponse("/login")
-            raise HTTPException(status_code=401, detail="Token expired")
-            
+            return JSONResponse({"detail": "Token expired"}, status_code=401)
+
         except jwt.InvalidTokenError as e:
             logger.warning("Invalid JWT: %s", e)
-            if "text/html" in request.headers.get("accept", ""):
+            if _browser_prefers_html(request):
                 return RedirectResponse("/login")
-            raise HTTPException(status_code=401, detail="Invalid token")
-            
+            return JSONResponse({"detail": "Invalid token"}, status_code=401)
+
         except Exception as e:
             logger.error("JWT Verification Error: %s", e)
-            raise HTTPException(status_code=401, detail="Authentication failed")
+            if _browser_prefers_html(request):
+                return RedirectResponse("/login")
+            return JSONResponse({"detail": "Authentication failed"}, status_code=401)
 
         return await call_next(request)

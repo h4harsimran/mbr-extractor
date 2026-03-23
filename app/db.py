@@ -90,6 +90,16 @@ import uuid
 
 # ── Document CRUD ───────────────────────────────────────────────────
 
+
+def _normalize_document_dict(d: dict) -> dict:
+    """Ensure stable string status for templates and API (strip / lowercase)."""
+    out = dict(d)
+    st = out.get("status")
+    if st is not None:
+        out["status"] = str(st).strip().lower()
+    return out
+
+
 def create_document(doc_id: str, filename: str, product_id: str = None, batch_id: str = None, mbr_type: str = None) -> dict:
     now = _now()
     with _get_conn() as conn:
@@ -108,7 +118,7 @@ def get_document(doc_id: str) -> Optional[dict]:
         with conn.cursor() as cur:
             cur.execute("SELECT * FROM documents WHERE id = %s", (doc_id,))
             row = cur.fetchone()
-    return dict(row) if row else None
+    return _normalize_document_dict(dict(row)) if row else None
 
 
 def list_documents(product_id: str = None, batch_id: str = None) -> list[dict]:
@@ -132,7 +142,7 @@ def list_documents(product_id: str = None, batch_id: str = None) -> list[dict]:
         with conn.cursor() as cur:
             cur.execute(query, params)
             rows = cur.fetchall()
-    return [dict(r) for r in rows]
+    return [_normalize_document_dict(dict(r)) for r in rows]
 
 
 def update_document(doc_id: str, **kwargs) -> None:
