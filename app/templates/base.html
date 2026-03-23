@@ -5,23 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}MBR Extractor{% endblock %}</title>
   <style>
-    :root {
-      --bg: #0f1117;
-      --surface: #1a1d27;
-      --surface-2: #242836;
-      --border: #2e3345;
-      --text: #e4e6f0;
-      --text-muted: #8b8fa3;
-      --accent: #6c63ff;
-      --accent-hover: #857eff;
-      --success: #22c55e;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --radius: 10px;
-      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    :root {
+      --bg: #0a0c14;
+      --surface: rgba(22, 26, 40, 0.85);
+      --surface-2: rgba(30, 35, 52, 0.9);
+      --surface-solid: #161a28;
+      --border: rgba(56, 63, 90, 0.5);
+      --border-glow: rgba(108, 99, 255, 0.3);
+      --text: #e8eaf6;
+      --text-muted: #8b90ad;
+      --accent: #7c6aff;
+      --accent-hover: #9b8aff;
+      --accent-glow: rgba(124, 106, 255, 0.15);
+      --gradient-1: linear-gradient(135deg, #7c6aff 0%, #3b82f6 100%);
+      --gradient-2: linear-gradient(135deg, #ec4899 0%, #f59e0b 100%);
+      --success: #34d399;
+      --warning: #fbbf24;
+      --danger: #f87171;
+      --radius: 12px;
+      --radius-lg: 16px;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+      --shadow-glow: 0 0 20px rgba(124, 106, 255, 0.1);
+      --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -31,73 +41,98 @@
       color: var(--text);
       line-height: 1.6;
       min-height: 100vh;
+      background-image: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124, 106, 255, 0.08), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 50%, rgba(59, 130, 246, 0.04), transparent);
     }
 
-    .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+    .container { max-width: 1440px; margin: 0 auto; padding: 2rem; }
 
+    /* ── Header with glassmorphism ────────────────────────── */
     header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 1rem 2rem;
-      background: var(--surface);
+      padding: 0.85rem 2rem;
+      background: rgba(16, 18, 30, 0.75);
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
       z-index: 100;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(20px) saturate(1.5);
+      -webkit-backdrop-filter: blur(20px) saturate(1.5);
     }
 
     header .logo {
-      font-size: 1.25rem;
+      font-size: 1.2rem;
       font-weight: 700;
-      color: var(--accent);
+      color: var(--text);
       text-decoration: none;
       display: flex;
       align-items: center;
       gap: 0.5rem;
+      transition: var(--transition);
+    }
+    header .logo:hover { transform: scale(1.02); }
+    header .logo .logo-icon {
+      background: var(--gradient-1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-size: 1.3rem;
     }
 
-    header .logo span { color: var(--text); }
-
+    header nav { display: flex; align-items: center; gap: 0.25rem; }
     header nav a {
       color: var(--text-muted);
       text-decoration: none;
-      margin-left: 1.5rem;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 500;
-      transition: color 0.2s;
+      padding: 0.4rem 0.85rem;
+      border-radius: 8px;
+      transition: var(--transition);
     }
-    header nav a:hover { color: var(--text); }
+    header nav a:hover {
+      color: var(--text);
+      background: var(--accent-glow);
+    }
 
-    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 1.5rem; }
-    h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; }
+    /* ── Typography ───────────────────────────────────────── */
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 1.5rem; letter-spacing: -0.02em; }
+    h2 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; letter-spacing: -0.01em; }
     h3 { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; }
 
+    /* ── Cards with glass effect ──────────────────────────── */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
+      border-radius: var(--radius-lg);
       padding: 1.5rem;
       margin-bottom: 1.5rem;
-      transition: border-color 0.2s;
+      transition: all var(--transition);
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow-sm);
     }
-    .card:hover { border-color: var(--accent); }
+    .card:hover {
+      border-color: var(--border-glow);
+      box-shadow: var(--shadow-glow);
+      transform: translateY(-2px);
+    }
 
+    /* ── Badges ───────────────────────────────────────────── */
     .badge {
       display: inline-block;
       padding: 0.2rem 0.7rem;
       border-radius: 999px;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
     }
-    .badge.uploaded { background: #2563eb22; color: #60a5fa; }
-    .badge.processing { background: #f59e0b22; color: #f59e0b; }
-    .badge.completed { background: #22c55e22; color: #22c55e; }
-    .badge.failed { background: #ef444422; color: #ef4444; }
-    .badge.pending { background: #64748b22; color: #94a3b8; }
+    .badge.uploaded  { background: rgba(59,130,246,0.15); color: #60a5fa; }
+    .badge.processing { background: rgba(251,191,36,0.15); color: #fbbf24; }
+    .badge.completed { background: rgba(52,211,153,0.15); color: #34d399; }
+    .badge.failed    { background: rgba(248,113,113,0.15); color: #f87171; }
+    .badge.pending   { background: rgba(100,116,139,0.15); color: #94a3b8; }
 
     .badge-review {
       display: inline-block;
@@ -105,48 +140,60 @@
       border-radius: 999px;
       font-size: 0.7rem;
       font-weight: 600;
-      background: #f59e0b22;
-      color: #f59e0b;
+      background: rgba(251,191,36,0.15);
+      color: #fbbf24;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.85rem;
-    }
+    /* ── Tables ───────────────────────────────────────────── */
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
     th, td {
       text-align: left;
-      padding: 0.6rem 0.75rem;
+      padding: 0.65rem 0.85rem;
       border-bottom: 1px solid var(--border);
     }
     th {
       font-weight: 600;
       color: var(--text-muted);
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
     }
-    tr:hover td { background: var(--surface-2); }
+    tr { transition: background var(--transition); }
+    tr:hover td { background: rgba(124, 106, 255, 0.04); }
 
+    /* ── Buttons ──────────────────────────────────────────── */
     .btn {
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
       padding: 0.5rem 1.1rem;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 0.85rem;
       font-weight: 600;
       text-decoration: none;
       border: none;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all var(--transition);
+      font-family: var(--font);
     }
-    .btn-primary { background: var(--accent); color: white; }
-    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
-    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-primary {
+      background: var(--gradient-1);
+      color: white;
+      box-shadow: 0 2px 12px rgba(124, 106, 255, 0.3);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 20px rgba(124, 106, 255, 0.4);
+    }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
     .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
     .btn-sm { padding: 0.3rem 0.75rem; font-size: 0.78rem; }
 
+    /* ── Forms ────────────────────────────────────────────── */
     .form-group { margin-bottom: 1rem; }
     .form-group label {
       display: block;
@@ -156,17 +203,24 @@
       color: var(--text-muted);
     }
 
-    input[type="file"], select {
+    input[type="text"], input[type="file"], select, textarea {
       background: var(--surface-2);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.5rem 0.75rem;
+      border-radius: 10px;
+      padding: 0.55rem 0.85rem;
       color: var(--text);
       font-size: 0.85rem;
       width: 100%;
       font-family: var(--font);
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
     }
 
+    /* ── Utility ──────────────────────────────────────────── */
     .filter-bar {
       display: flex;
       gap: 0.75rem;
@@ -177,9 +231,9 @@
     .filter-bar a { white-space: nowrap; }
 
     .json-block {
-      background: var(--surface-2);
+      background: rgba(20, 24, 38, 0.9);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 1rem;
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.75rem;
@@ -193,16 +247,20 @@
 
     .page-image {
       max-width: 100%;
-      border-radius: 8px;
+      border-radius: 10px;
       border: 1px solid var(--border);
+      transition: transform var(--transition);
     }
+    .page-image:hover { transform: scale(1.01); }
 
     .page-section {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius);
+      border-radius: var(--radius-lg);
       margin-bottom: 2rem;
       overflow: hidden;
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow-sm);
     }
     .page-header {
       display: flex;
@@ -222,10 +280,11 @@
       color: var(--accent);
       font-weight: 500;
       font-size: 0.85rem;
+      transition: color var(--transition);
     }
-    .collapsible-toggle:hover { text-decoration: underline; }
+    .collapsible-toggle:hover { text-decoration: underline; color: var(--accent-hover); }
     .collapsible-content { display: none; margin-top: 0.75rem; }
-    .collapsible-content.open { display: block; }
+    .collapsible-content.open { display: block; animation: fadeIn 0.3s ease; }
 
     .error-text { color: var(--danger); font-size: 0.8rem; }
     .empty-state {
@@ -234,23 +293,47 @@
       color: var(--text-muted);
     }
 
+    /* ── Animations ───────────────────────────────────────── */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .animate-in { animation: fadeIn 0.4s ease both; }
+
+    /* ── Responsive ───────────────────────────────────────── */
     @media (max-width: 900px) {
       .grid-2 { grid-template-columns: 1fr; }
       .container { padding: 1rem; }
+      header { padding: 0.75rem 1rem; }
+      header nav a { font-size: 0.78rem; padding: 0.35rem 0.6rem; }
     }
+
+    /* ── Scrollbar ────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
   </style>
 </head>
 <body>
   <header>
-    <a href="/review" class="logo">⚗️ <span>MBR Extractor</span></a>
+    <a href="/review" class="logo">
+      <span class="logo-icon">⚗️</span>
+      <span>MBR Extractor</span>
+    </a>
     <nav>
       <a href="/products">Products</a>
       <a href="/review">Dashboard</a>
-      <a href="/documents">API: Documents</a>
-      <a href="/docs">API Docs</a>
+      <a href="/documents">API: Docs</a>
+      <a href="/docs">Swagger</a>
     </nav>
   </header>
-  <div class="container">
+  <div class="container animate-in">
     {% block content %}{% endblock %}
   </div>
   <script>

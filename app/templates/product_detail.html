@@ -7,8 +7,10 @@
     <a href="/products" class="btn btn-outline btn-sm">⬅ Back to Products</a>
 </div>
 
-<h1>📦 {{ product.name }}</h1>
-
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <h1 style="margin-bottom: 0;">📦 {{ product.name }}</h1>
+    <a href="/products/{{ product.id }}/trending" class="btn btn-primary btn-sm">📈 Trend Analysis</a>
+</div>
 <div class="card">
     <h3>Process Flow (Operation Labels)</h3>
     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">

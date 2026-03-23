@@ -239,6 +239,34 @@ def get_batch(batch_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def get_batch_by_lot(product_id: str, lot_number: str) -> Optional[dict]:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT * FROM batches WHERE product_id = %s AND lot_number = %s",
+                (product_id, lot_number),
+            )
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def get_product_by_name(name: str) -> Optional[dict]:
+    with _get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM products WHERE name = %s", (name,))
+            row = cur.fetchone()
+    
+    if not row:
+        return None
+        
+    d = dict(row)
+    if d.get("mbr_types"):
+        d["mbr_types"] = json.loads(d["mbr_types"])
+    else:
+        d["mbr_types"] = []
+    return d
+
+
 # ── Page CRUD ───────────────────────────────────────────────────────
 
 def create_page(document_id: str, page_number: int, image_path: str) -> int:

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In — MBR Extractor{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: center; align-items: center; min-height: 70vh;">
+  <div class="card" style="max-width: 420px; width: 100%;">
+    <div style="text-align: center; margin-bottom: 2rem;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">⚗️</div>
+      <h1 style="margin-bottom: 0.5rem; font-size: 1.5rem;">MBR Extractor</h1>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">Sign in to access batch analytics</p>
+    </div>
+
+    <div id="auth-error" style="display:none; padding: 0.75rem; border-radius: 8px; background: rgba(248,113,113,0.1); color: var(--danger); font-size: 0.85rem; margin-bottom: 1rem;"></div>
+
+    <!-- Sign In Form -->
+    <div id="signin-form">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="text" id="email" placeholder="you@company.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="text" id="password" placeholder="••••••••" style="-webkit-text-security: disc;">
+      </div>
+      <button class="btn btn-primary" style="width: 100%;" onclick="signIn()">Sign In</button>
+      <p style="text-align: center; margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted);">
+        No account? <a href="#" onclick="toggleMode()" style="color: var(--accent);" id="mode-link">Create one</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SUPABASE_URL = '{{ supabase_url }}';
+const SUPABASE_ANON_KEY = '{{ supabase_anon_key }}';
+let isSignUp = false;
+
+function showError(msg) {
+  const el = document.getElementById('auth-error');
+  el.innerText = msg;
+  el.style.display = 'block';
+}
+
+function toggleMode() {
+  isSignUp = !isSignUp;
+  const btn = document.querySelector('#signin-form .btn-primary');
+  const link = document.getElementById('mode-link');
+  if (isSignUp) {
+    btn.innerText = 'Create Account';
+    link.innerText = 'Sign in instead';
+  } else {
+    btn.innerText = 'Sign In';
+    link.innerText = 'Create one';
+  }
+}
+
+async function signIn() {
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  if (!email || !password) { showError('Please fill in all fields.'); return; }
+  if (!SUPABASE_URL) { showError('Auth not configured. Set SUPABASE_URL in .env'); return; }
+
+  const endpoint = isSignUp ? '/auth/v1/signup' : '/auth/v1/token?grant_type=password';
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      showError(data.error_description || data.msg || 'Authentication failed.');
+      return;
+    }
+
+    if (isSignUp && !data.access_token) {
+      document.getElementById('auth-error').style.display = 'none';
+      alert('Account created! Check your email to confirm, then sign in.');
+      toggleMode();
+      return;
+    }
+
+    // Set token as cookie
+    document.cookie = `access_token=${data.access_token}; path=/; max-age=${data.expires_in || 3600}; SameSite=Lax`;
+
+    // Redirect to dashboard
+    window.location.href = '/products';
+
+  } catch (err) {
+    console.error(err);
+    showError('Network error. Please try again.');
+  }
+}
+
+// Allow Enter key
+document.getElementById('password').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') signIn();
+});
+</script>
+{% endblock %}

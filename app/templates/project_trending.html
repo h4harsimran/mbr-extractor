@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Trending: {{ product.name }} — MBR Extractor{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.5rem; display: flex; gap: 0.75rem; align-items: center;">
+  <a href="/products/{{ product.id }}" class="btn btn-outline btn-sm">← Back to {{ product.name }}</a>
+</div>
+
+<h1>📈 Trending & Comparison</h1>
+
+<div class="grid-2">
+    <!-- Controls -->
+    <div class="card" style="align-self: flex-start;">
+        <h3>Configuration</h3>
+        
+        <div class="form-group" style="margin-bottom: 1rem;">
+            <label>Select Batches to Compare</label>
+            <div style="max-height: 150px; overflow-y: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem;">
+                {% for batch in batches %}
+                <label style="display: block; margin-bottom: 0.5rem; cursor: pointer; color: var(--text);">
+                    <input type="checkbox" name="batches" value="{{ batch.id }}" checked>
+                    {{ batch.lot_number }}
+                </label>
+                {% endfor %}
+                {% if not batches %}
+                <p style="color: var(--text-muted); font-size: 0.85rem;">No batches available for this product.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1rem;">
+            <label>Select Parameters to Trend</label>
+            <div id="parameters-container" style="max-height: 200px; overflow-y: auto; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem;">
+                <p style="color: var(--text-muted); font-size: 0.85rem;">Loading parameters...</p>
+            </div>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">Select up to 2-3 parameters for best visibility.</p>
+        </div>
+
+        <button id="plot-btn" class="btn btn-primary" style="width: 100%;">Update Chart</button>
+    </div>
+
+    <!-- Chart -->
+    <div class="card" style="min-height: 400px; display: flex; flex-direction: column;">
+        <h3 id="chart-title">Trends</h3>
+        <div style="flex: 1; position: relative;">
+            <canvas id="trendChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const productId = '{{ product.id }}';
+let chartInstance = null;
+
+const colors = [
+    '#6c63ff', '#22c55e', '#f59e0b', '#ef4444', 
+    '#3b82f6', '#ec4899', '#8b5cf6', '#14b8a6'
+];
+
+async function loadParameters() {
+    try {
+        const res = await fetch(`/api/products/${productId}/parameters`);
+        const data = await res.json();
+        const container = document.getElementById('parameters-container');
+        
+        if (!data.parameters || data.parameters.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No extracted parameters found.</p>';
+            return;
+        }
+        
+        let html = '';
+        data.parameters.forEach((param, idx) => {
+            // Default select the first one
+            const checked = idx === 0 ? 'checked' : '';
+            html += `
+                <label style="display: block; margin-bottom: 0.5rem; cursor: pointer; color: var(--text); font-size: 0.9rem;">
+                    <input type="checkbox" name="parameters" value="${param}" ${checked}>
+                    ${param}
+                </label>
+            `;
+        });
+        container.innerHTML = html;
+        
+        // Auto-plot initially
+        plotChart();
+        
+    } catch (err) {
+        console.error("Error loading parameters:", err);
+        document.getElementById('parameters-container').innerHTML = '<span class="error-text">Failed to load.</span>';
+    }
+}
+
+async function plotChart() {
+    const plotBtn = document.getElementById('plot-btn');
+    plotBtn.innerText = 'Updating...';
+    plotBtn.disabled = true;
+    
+    // Get selected batches and params
+    const selectedBatches = Array.from(document.querySelectorAll('input[name="batches"]:checked')).map(el => el.value);
+    const selectedParams = Array.from(document.querySelectorAll('input[name="parameters"]:checked')).map(el => el.value);
+    
+    if (selectedBatches.length === 0 || selectedParams.length === 0) {
+        alert("Please select at least one batch and one parameter.");
+        plotBtn.innerText = 'Update Chart';
+        plotBtn.disabled = false;
+        return;
+    }
+    
+    try {
+        // Fetch data
+        const res = await fetch(`/api/products/${productId}/trending_data?batch_ids=${encodeURIComponent(selectedBatches.join(','))}&parameters=${encodeURIComponent(selectedParams.join(','))}`);
+        const result = await res.json();
+        
+        if (!res.ok) throw new Error("Failed to fetch data");
+        
+        renderChart(result.data, selectedParams);
+        
+    } catch (err) {
+        console.error("Plot error:", err);
+        alert("Failed to plot data. See console.");
+    } finally {
+        plotBtn.innerText = 'Update Chart';
+        plotBtn.disabled = false;
+    }
+}
+
+function renderChart(batchData, parameters) {
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    
+    if (chartInstance) {
+        chartInstance.destroy();
+    }
+    
+    const datasets = [];
+    let colorIndex = 0;
+    
+    const batchMap = {
+        {% for batch in batches %}
+        "{{ batch.id }}": "{{ batch.lot_number }}",
+        {% endfor %}
+    };
+    
+    Object.keys(batchData).forEach(batchId => {
+        const lotNumber = batchMap[batchId] || batchId;
+        const rowData = batchData[batchId]; 
+        
+        parameters.forEach(param => {
+            const points = rowData.filter(d => d.parameter === param);
+            if (points.length === 0) return;
+            
+            const parsedData = points.map(pt => {
+                // Parse float from value string handling sci notation potentially
+                const numericStr = pt.value.replace(/,/g, '').match(/-?[\d]+(\.[\d]+)?(e-?[\d]+)?/i);
+                const val = numericStr ? parseFloat(numericStr[0]) : NaN;
+                
+                return {
+                    x: pt.document, 
+                    y: val,
+                    units: pt.units,
+                    raw: pt.value,
+                    originalDoc: pt.document
+                };
+            }).filter(pt => !isNaN(pt.y));
+            
+            if (parsedData.length > 0) {
+                datasets.push({
+                    label: `${lotNumber} - ${param}`,
+                    data: parsedData,
+                    borderColor: colors[colorIndex % colors.length],
+                    backgroundColor: colors[colorIndex % colors.length],
+                    tension: 0.1,
+                    spanGaps: true
+                });
+                colorIndex++;
+            }
+        });
+    });
+    
+    document.getElementById('chart-title').innerText = `Trending: ${parameters.join(', ')}`;
+    
+    const allLabels = new Set();
+    datasets.forEach(ds => ds.data.forEach(pt => allLabels.add(pt.x)));
+    const labels = Array.from(allLabels).sort();
+    
+    const alignedDatasets = datasets.map(ds => {
+        const dataArr = new Array(labels.length).fill(null);
+        ds.data.forEach(pt => {
+            const idx = labels.indexOf(pt.x);
+            if (idx !== -1) dataArr[idx] = pt.y;
+        });
+        return {
+            ...ds,
+            originalPoints: ds.data,
+            data: dataArr
+        };
+    });
+
+    // Dark mode text configuration
+    Chart.defaults.color = '#8b8fa3';
+    Chart.defaults.font.family = "'Inter', sans-serif";
+
+    chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: alignedDatasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: '#e4e6f0' }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const dataset = context.dataset;
+                            const pts = dataset.originalPoints;
+                            const point = pts.find(p => p.x === context.label && p.y === context.parsed.y);
+                            let lbl = context.dataset.label || '';
+                            if (lbl) lbl += ': ';
+                            if (point && point.raw) {
+                                lbl += point.raw;
+                                if (point.units && point.units !== '—') lbl += ' ' + point.units;
+                            } else {
+                                lbl += context.parsed.y;
+                            }
+                            return lbl;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    grid: { color: '#2e3345' },
+                    ticks: { color: '#8b8fa3' }
+                },
+                x: {
+                    grid: { color: '#2e3345' },
+                    ticks: { color: '#8b8fa3' }
+                }
+            }
+        }
+    });
+}
+
+document.getElementById('plot-btn').addEventListener('click', plotChart);
+
+// Init
+window.addEventListener('DOMContentLoaded', loadParameters);
+</script>
+{% endblock %}

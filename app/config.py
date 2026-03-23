@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     db_path: str = "data/mbr_extractor.db"
     database_url: str = ""
 
+    # Supabase Auth
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_jwt_secret: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     # ── derived paths ──────────────────────────────────────────────

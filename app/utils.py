@@ -8,6 +8,18 @@ from typing import Any
 from app.config import settings
 
 
+import re
+
+def sanitize_filename(name: str) -> str:
+    """Make a string safe for use as a filename."""
+    # Remove any characters that aren't alphanumeric, space, dot, or dash
+    name = re.sub(r'[^\w\s\.-]', '', name)
+    # Replace spaces with underscores
+    name = name.replace(' ', '_')
+    # Truncate to reasonable length
+    return name[:100]
+
+
 def generate_document_id() -> str:
     """Create a short, unique document identifier."""
     return uuid.uuid4().hex[:12]

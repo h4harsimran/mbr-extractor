@@ -41,12 +41,29 @@ class ExtractedRow(BaseModel):
         return self
 
 
+class RowUpdateRequest(BaseModel):
+    """Fields that can be updated during manual review."""
+    
+    parameter_label: Optional[str] = None
+    target_value: Optional[str] = None
+    actual_value: Optional[str] = None
+    units: Optional[str] = None
+    comments: Optional[str] = None
+    performed_by_initials: Optional[str] = None
+    performed_date: Optional[str] = None
+    verified_by_initials: Optional[str] = None
+    verified_date: Optional[str] = None
+    needs_review: Optional[bool] = None
+    reviewer_notes: Optional[str] = None
+
+
 # ── Page-Level Extraction ───────────────────────────────────────────
 
 class PageExtraction(BaseModel):
     """Gemini output for a single page."""
 
     page_number: int
+    lot_number: Optional[str] = Field(None, description="Batch Lot# if found on page header/footer")
     rows: list[ExtractedRow] = Field(default_factory=list)
 
 

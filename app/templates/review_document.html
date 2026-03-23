@@ -59,85 +59,111 @@
       {% if page.raw_data %}
       <span class="collapsible-toggle" onclick="toggleCollapsible('raw-{{ page.page_number }}')">Raw JSON</span>
       {% endif %}
-      {% if page.image_url %}
-      <span class="collapsible-toggle" onclick="toggleCollapsible('img-{{ page.page_number }}')">Image</span>
-      {% endif %}
     </div>
   </div>
 
-  <div class="page-body">
-    {% if page.error_message %}
-    <div style="margin-bottom: 1rem;">
-      <p class="error-text">Error: {{ page.error_message }}</p>
-    </div>
-    {% endif %}
-
-    <!-- Image collapsible -->
+  <div class="page-body" style="display: flex; gap: 1.5rem; align-items: flex-start; margin-top: 1rem; flex-wrap: wrap;">
+    <!-- LEFT PANE: PDF Image -->
     {% if page.image_url %}
-    <div id="img-{{ page.page_number }}" class="collapsible-content" style="margin-bottom: 1rem;">
-      <img src="{{ page.image_url }}" alt="Page {{ page.page_number }}" class="page-image" loading="lazy">
+    <div class="pdf-pane" style="flex: 1; min-width: 300px; max-width: 45%; position: sticky; top: 80px;">
+      <img src="{{ page.image_url }}" alt="Page {{ page.page_number }}" style="width: 100%; height: auto; border: 1px solid var(--border); border-radius: var(--radius);" loading="lazy">
     </div>
     {% endif %}
 
-    <!-- Raw JSON collapsible -->
-    {% if page.raw_data %}
-    <div id="raw-{{ page.page_number }}" class="collapsible-content" style="margin-bottom: 1rem;">
-      <h3>Raw Gemini Response</h3>
-      <div class="json-block">{{ page.raw_data }}</div>
-    </div>
-    {% endif %}
+    <!-- RIGHT PANE: Data -->
+    <div class="data-pane" style="flex: 1; min-width: 300px;">
+      {% if page.error_message %}
+      <div style="margin-bottom: 1rem;">
+        <p class="error-text">Error: {{ page.error_message }}</p>
+      </div>
+      {% endif %}
 
-    <!-- Extracted rows table -->
-    {% if page.normalized_data and page.normalized_data.rows %}
-    <div style="overflow-x: auto;">
-      <table>
-        <thead>
-          <tr>
-            <th>Row</th>
-            <th>Parameter</th>
-            <th>Target</th>
-            <th>Actual</th>
-            <th>Units</th>
-            <th>Comments</th>
-            <th>Performed</th>
-            <th>Verified</th>
-            <th>Conf.</th>
-            <th>Review</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in page.normalized_data.rows %}
-          <tr{% if row.needs_review %} style="background: #f59e0b08;"{% endif %}>
-            <td>{{ row.row_id or '—' }}</td>
-            <td>{{ row.parameter_label or '—' }}</td>
-            <td>{{ row.target_value or '—' }}</td>
-            <td>{{ row.actual_value or '—' }}</td>
-            <td>{{ row.units or '—' }}</td>
-            <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ row.comments or '' }}">{{ row.comments or '—' }}</td>
-            <td>{{ row.performed_by_initials or '?' }} {{ row.performed_date or '' }}</td>
-            <td>{{ row.verified_by_initials or '?' }} {{ row.verified_date or '' }}</td>
-            <td>{{ '%.0f' | format(row.extraction_confidence * 100) }}%</td>
-            <td>
-              {% if row.needs_review %}
-              <span class="badge-review">⚠ Yes</span>
-              {% else %}
-              <span style="color: var(--success); font-size: 0.8rem;">✓</span>
-              {% endif %}
-            </td>
-            <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ row.reviewer_notes or '' }}">{{ row.reviewer_notes or '—' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <!-- Raw JSON collapsible -->
+      {% if page.raw_data %}
+      <div id="raw-{{ page.page_number }}" class="collapsible-content" style="margin-bottom: 1rem;">
+        <h3>Raw Gemini Response</h3>
+        <div class="json-block">{{ page.raw_data }}</div>
+      </div>
+      {% endif %}
+
+      <!-- Extracted rows table -->
+      {% if page.normalized_data and page.normalized_data.rows %}
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Row</th>
+              <th>Parameter</th>
+              <th>Target</th>
+              <th>Actual</th>
+              <th>Units</th>
+              <th>Comments</th>
+              <th>Performed</th>
+              <th>Verified</th>
+              <th>Conf.</th>
+              <th>Review</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in page.normalized_data.rows %}
+            <tr id="row-{{ page.page_number }}-{{ loop.index0 }}" {% if row.needs_review %} style="background: #f59e0b08;"{% endif %}>
+              <td>{{ row.row_id or '—' }}</td>
+              <td>
+                <span class="view-val">{{ row.parameter_label or '—' }}</span>
+                <input class="edit-val" style="display:none; width:100%; min-width:80px;" data-key="parameter_label" value="{{ row.parameter_label or '' }}">
+              </td>
+              <td>
+                <span class="view-val">{{ row.target_value or '—' }}</span>
+                <input class="edit-val" style="display:none; width:100%; min-width:60px;" data-key="target_value" value="{{ row.target_value or '' }}">
+              </td>
+              <td>
+                <span class="view-val">{{ row.actual_value or '—' }}</span>
+                <input class="edit-val" style="display:none; width:100%; min-width:60px;" data-key="actual_value" value="{{ row.actual_value or '' }}">
+              </td>
+              <td>
+                <span class="view-val">{{ row.units or '—' }}</span>
+                <input class="edit-val" style="display:none; width:100%; min-width:50px;" data-key="units" value="{{ row.units or '' }}">
+              </td>
+              <td>
+                <span class="view-val" style="display:inline-block; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ row.comments or '' }}">{{ row.comments or '—' }}</span>
+                <input class="edit-val" style="display:none; width:100%; min-width:80px;" data-key="comments" value="{{ row.comments or '' }}">
+              </td>
+              <td>
+                <span class="view-val">{{ row.performed_by_initials or '?' }}</span>
+                <input class="edit-val" style="display:none; width:40px;" data-key="performed_by_initials" value="{{ row.performed_by_initials or '' }}">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">{{ row.performed_date or '' }}</span>
+              </td>
+              <td>
+                <span class="view-val">{{ row.verified_by_initials or '?' }}</span>
+                <input class="edit-val" style="display:none; width:40px;" data-key="verified_by_initials" value="{{ row.verified_by_initials or '' }}">
+                <span style="font-size: 0.8rem; color: var(--text-muted);">{{ row.verified_date or '' }}</span>
+              </td>
+              <td>{{ '%.0f' | format(row.extraction_confidence * 100) }}%</td>
+              <td class="review-badge-cell">
+                {% if row.needs_review %}
+                <span class="badge-review">⚠ Yes</span>
+                {% else %}
+                <span style="color: var(--success); font-size: 0.8rem;">✓</span>
+                {% endif %}
+              </td>
+              <td>
+                <button class="btn btn-outline btn-sm edit-btn" onclick="toggleEdit({{ page.page_number }}, {{ loop.index0 }})" style="padding: 0.2rem 0.5rem;">✎ Edit</button>
+                <button class="btn btn-primary btn-sm save-btn" style="display:none; padding: 0.2rem 0.5rem;" onclick="saveRow({{ page.page_number }}, {{ loop.index0 }})">Save</button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% elif page.status == 'completed' %}
+      <p style="color: var(--text-muted); font-size: 0.85rem;">No rows extracted from this page.</p>
+      {% elif page.status == 'failed' %}
+      <p class="error-text">Extraction failed — see error above or inspect raw JSON.</p>
+      {% else %}
+      <p style="color: var(--text-muted); font-size: 0.85rem;">Page has not been processed yet.</p>
+      {% endif %}
     </div>
-    {% elif page.status == 'completed' %}
-    <p style="color: var(--text-muted); font-size: 0.85rem;">No rows extracted from this page.</p>
-    {% elif page.status == 'failed' %}
-    <p class="error-text">Extraction failed — see error above or inspect raw JSON.</p>
-    {% else %}
-    <p style="color: var(--text-muted); font-size: 0.85rem;">Page has not been processed yet.</p>
-    {% endif %}
   </div>
 </div>
 {% endfor %}
@@ -146,4 +172,80 @@
   <p>No pages match the current filter.</p>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleEdit(pageNum, rowIdx) {
+  const tr = document.getElementById(`row-${pageNum}-${rowIdx}`);
+  
+  // Show inputs, hide spans
+  tr.querySelectorAll('.view-val').forEach(el => el.style.display = 'none');
+  tr.querySelectorAll('.edit-val').forEach(el => el.style.display = 'inline-block');
+  
+  // Toggle buttons
+  tr.querySelector('.edit-btn').style.display = 'none';
+  tr.querySelector('.save-btn').style.display = 'inline-block';
+}
+
+async function saveRow(pageNum, rowIdx) {
+  const tr = document.getElementById(`row-${pageNum}-${rowIdx}`);
+  const saveBtn = tr.querySelector('.save-btn');
+  const originalText = saveBtn.innerText;
+  
+  saveBtn.innerText = 'Saving...';
+  saveBtn.disabled = true;
+  
+  const payload = { needs_review: false }; // Auto-approve on save
+  
+  tr.querySelectorAll('.edit-val').forEach(input => {
+    const key = input.getAttribute('data-key');
+    payload[key] = input.value;
+  });
+  
+  const docId = '{{ document.id }}';
+  
+  try {
+    const res = await fetch(`/api/documents/${docId}/pages/${pageNum}/rows/${rowIdx}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!res.ok) throw new Error("Failed to save row");
+    
+    const data = await res.json();
+    const updatedRow = data.row;
+    
+    // Update view spans with new data
+    tr.querySelectorAll('.view-val').forEach(span => {
+      const input = span.nextElementSibling;
+      if (input && input.classList.contains('edit-val')) {
+        const key = input.getAttribute('data-key');
+        span.innerText = updatedRow[key] || '—';
+        input.value = updatedRow[key] || '';
+      }
+    });
+    
+    // Revert UI to view mode
+    tr.querySelectorAll('.view-val').forEach(el => el.style.display = 'inline-block');
+    tr.querySelectorAll('.edit-val').forEach(el => el.style.display = 'none');
+    
+    tr.querySelector('.edit-btn').style.display = 'inline-block';
+    saveBtn.style.display = 'none';
+    
+    // Clear warning highlights
+    tr.style.background = '';
+    const badgeCell = tr.querySelector('.review-badge-cell');
+    if (badgeCell) badgeCell.innerHTML = '<span style="color: var(--success); font-size: 0.8rem;">✓</span>';
+    
+  } catch (err) {
+    console.error(err);
+    alert("Error saving row. Check console for details.");
+  } finally {
+    saveBtn.innerText = originalText;
+    saveBtn.disabled = false;
+  }
+}
+</script>
 {% endblock %}

@@ -20,54 +20,37 @@ Read page images carefully and extract data into strict JSON only.
 
 CRITICAL — ONE PARAMETER PER ROW:
 - Each JSON output row must contain EXACTLY ONE parameter/measurement.
-- If a single visual row on the page contains multiple sub-parameters (e.g. Step 9.25 lists
-  "Full BAPH weight (g)", "Empty BAPH weight (g)", and "BAPH Cell Volume (mL)" together),
-  you MUST split them into separate JSON rows — one row per parameter, each with its own
-  parameter_label, actual_value, and units.
-- NEVER combine multiple values with semicolons, slashes, or any delimiter in a single field.
-- Each row_id should uniquely identify the sub-parameter (e.g. "9.25-A", "9.25-B", "9.25-C").
+- Split merged parameters into separate rows with their own label, value, and units.
+- row_id should uniquely identify the sub-parameter.
+
+METADATA:
+- Extract the "Batch Lot Number" or "Lot#" if it appears in the page header, footer, or metadata section.
+- Put this in the top-level "lot_number" field once per page. Do NOT repeat it in every data row.
 
 Preserve row relationships exactly.
 Do not guess or infer values that are not visible on the page.
-If a field is unreadable, return null and mark needs_review=true.
 Return ONLY valid JSON matching the required schema — no markdown fences, no commentary."""
 
 USER_PROMPT_TEMPLATE = """Extract all visible table rows and handwritten entries from this MBR page (page {page_number}) into the required JSON schema.
 
-For each row, correctly associate:
+Identify the **Batch Lot Number** (Lot#) typically found in the header or footer.
+
+For each data row, correctly associate:
 - printed parameter or label
 - handwritten actual value
 - handwritten comments
-- performed by initials/date
-- verified by initials/date
+- initials and dates for performed-by and verified-by
 
-CRITICAL — ONE PARAMETER PER OUTPUT ROW:
-- Every output row must have exactly ONE parameter_label, ONE actual_value, and ONE units value.
-- If a physical row on the page groups multiple sub-items (e.g. a step that lists weight, volume,
-  and concentration together), split them into SEPARATE output rows.
-- NEVER join multiple parameters or values with semicolons (;), slashes (/), or any delimiter.
-- Use sub-IDs like "9.25-A", "9.25-B", "9.25-C" to distinguish split rows from the same step.
-
-Example — if a page row shows:
-  Step 9.25: Full BAPH weight (g) = 171.7 | Empty BAPH weight (g) = 66.0 | Cell Volume (mL) = 105.7
-You MUST return THREE separate JSON rows:
-  row_id "9.25-A": parameter_label "Full BAPH weight (g)", actual_value "171.7", units "g"
-  row_id "9.25-B": parameter_label "Empty BAPH weight (g)", actual_value "66.0", units "g"
-  row_id "9.25-C": parameter_label "BAPH Cell Volume (mL)", actual_value "105.7", units "mL"
-
-Other rules:
-- Keep each physical row separate. Do NOT merge neighboring rows.
-- Do NOT hallucinate missing values.
-- If a comment spans multiple lines within one row, combine it into one text field.
-- If there are cuttings, strike-throughs, or overwritten values, capture the latest visible intended value if clear; otherwise set null and flag for review.
+Rules:
+- ONE PARAMETER PER OUTPUT ROW. Split grouped parameters into separate items.
 - extraction_confidence must be a float between 0.0 and 1.0.
-- Set needs_review=true for any ambiguous, unreadable, or missing field.
-- Preserve comments exactly as read where possible.
-- For signatures/dates/comments that are ambiguous, return the visible portion only and add a reviewer_notes entry.
+- Set needs_review=true for any ambiguous or missing field.
+- Return valid JSON ONLY matching the provided template.
 
 Required output schema:
 {{
   "page_number": {page_number},
+  "lot_number": "<extracted Lot# or null>",
   "rows": [
     {{
       "page_number": {page_number},
@@ -81,15 +64,11 @@ Required output schema:
       "performed_date": "<date string or null>",
       "verified_by_initials": "<initials or null>",
       "verified_date": "<date string or null>",
-      "reviewer_notes": "<model notes on ambiguity or null>",
       "extraction_confidence": <0.0 to 1.0>,
-      "needs_review": <true|false>,
-      "source_image_path": null
+      "needs_review": <true|false>
     }}
   ]
-}}
-
-Return valid JSON ONLY. No markdown code fences. No extra text."""
+}}"""
 
 # ── Client ──────────────────────────────────────────────────────────
 

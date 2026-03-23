@@ -3,6 +3,7 @@
 import logging
 import shutil
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, Form
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -19,6 +20,8 @@ from app.schemas import (
     UploadResponse,
     ProductResponse,
     BatchResponse,
+    RowUpdateRequest,
+    PageExtraction,
 )
 from app.utils import (
     doc_export_path,
@@ -43,7 +46,30 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# ── Auth middleware (disabled when SUPABASE_JWT_SECRET is empty) ────
+from app.auth import AuthMiddleware
+app.add_middleware(AuthMiddleware)
+
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+# ── Public routes ───────────────────────────────────────────────────
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    return templates.TemplateResponse(
+        "login.html",
+        {
+            "request": request,
+            "supabase_url": settings.supabase_url,
+            "supabase_anon_key": settings.supabase_anon_key,
+        },
+    )
 
 # Mount images directory so the review UI can display page images
 ensure_dir(settings.images_dir)
@@ -190,6 +216,44 @@ def get_normalized_json(document_id: str):
         except Exception:
             pages.append({"file": f.name, "error": "Could not parse"})
     return {"document_id": document_id, "pages": pages}
+
+
+@app.put("/api/documents/{document_id}/pages/{page_number}/rows/{row_index}")
+def update_row(document_id: str, page_number: int, row_index: int, update: RowUpdateRequest):
+    """Update human-reviewed fields in a specific row and clear its review flag."""
+    doc = db.get_document(document_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    from app.utils import page_normalized_json_path
+    
+    norm_path = page_normalized_json_path(document_id, page_number)
+    if not norm_path.exists():
+        raise HTTPException(status_code=404, detail="Page data not found")
+        
+    data = load_json(norm_path)
+    page_data = PageExtraction.model_validate(data)
+    
+    if row_index < 0 or row_index >= len(page_data.rows):
+        raise HTTPException(status_code=404, detail="Row not found")
+        
+    row = page_data.rows[row_index]
+    
+    # Update fields that were provided
+    update_data = update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(row, key, value)
+        
+    # Re-save
+    from app.utils import save_json
+    save_json(page_data.model_dump(mode="json"), norm_path)
+    
+    # Invalidate CSV cache
+    csv_path = doc_export_path(document_id)
+    if csv_path.exists():
+        csv_path.unlink()
+        
+    return {"status": "ok", "row": row.model_dump(mode="json")}
 
 
 # ── CSV export ──────────────────────────────────────────────────────
@@ -345,6 +409,88 @@ def product_detail_ui(request: Request, product_id: str):
         "product_detail.html",
         {"request": request, "product": product, "batches": batches},
     )
+
+
+@app.get("/products/{product_id}/trending", response_class=HTMLResponse)
+def product_trending_ui(request: Request, product_id: str):
+    """HTML page showing cross-batch trending for a product."""
+    product = db.get_product(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    batches = db.list_batches(product_id)
+    return templates.TemplateResponse(
+        "project_trending.html",
+        {"request": request, "product": product, "batches": batches},
+    )
+
+
+import csv
+
+@app.get("/api/products/{product_id}/parameters")
+def get_product_parameters(product_id: str):
+    """Get a list of unique parameter labels extracted for a product."""
+    documents = db.list_documents(product_id=product_id)
+    completed_docs = [d for d in documents if d["status"] == "completed"]
+    
+    unique_params = set()
+    for doc in completed_docs:
+        csv_path = doc_export_path(doc["id"])
+        if not csv_path.exists():
+            try:
+                export_csv(doc["id"])
+            except Exception:
+                continue
+        if csv_path.exists():
+            with open(csv_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    label = row.get("parameter_label")
+                    if label and label != "—" and label.strip():
+                        unique_params.add(label.strip())
+                        
+    return {"parameters": sorted(list(unique_params))}
+
+
+@app.get("/api/products/{product_id}/trending_data")
+def get_trending_data(product_id: str, batch_ids: str, parameters: str):
+    """Get actual values for specific parameters across selected batches."""
+    b_ids = [b.strip() for b in batch_ids.split(",") if b.strip()]
+    p_labels = [p.strip() for p in parameters.split(",") if p.strip()]
+    
+    documents = db.list_documents(product_id=product_id)
+    # Target complete docs belonging to selected batches
+    target_docs = [d for d in documents if d.get("batch_id") in b_ids and d["status"] == "completed"]
+    # Sort docs chronologically to ensure time-series holds
+    target_docs.sort(key=lambda d: d["created_at"])
+    
+    results = {b_id: [] for b_id in b_ids}
+    
+    for doc in target_docs:
+        batch_id = doc["batch_id"]
+        csv_path = doc_export_path(doc["id"])
+        if not csv_path.exists():
+            try:
+                export_csv(doc["id"])
+            except Exception:
+                continue
+                
+        if csv_path.exists():
+            with open(csv_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    label = row.get("parameter_label", "").strip()
+                    if label in p_labels:
+                        actual = row.get("actual_value", "").strip()
+                        if actual and actual != "—":
+                            results[batch_id].append({
+                                "parameter": label,
+                                "value": actual,
+                                "units": row.get("units", ""),
+                                "document": doc["original_filename"],
+                                "created_at": doc["created_at"]
+                            })
+                        
+    return {"data": results}
 
 
 @app.post("/products/{product_id}/batches")
