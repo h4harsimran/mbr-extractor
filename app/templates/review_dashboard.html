@@ -107,7 +107,7 @@
       const data = await res.json();
       if (res.ok) {
         alert(`Done! ${data.pages_succeeded}/${data.pages_processed} pages succeeded, ${data.total_rows_extracted} rows extracted.`);
-        location.reload();
+        window.location.assign(`/review?_=${Date.now()}`);
       } else {
         alert(`Error: ${data.detail || 'Processing failed'}`);
         btn.disabled = false;
