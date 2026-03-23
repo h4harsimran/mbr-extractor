@@ -65,12 +65,50 @@
 
 {% block scripts %}
 <script>
+  function _escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function _injectDocRow(docId, filename) {
+    let tbody = document.querySelector('table tbody');
+    if (!tbody) {
+      const empty = document.querySelector('.empty-state');
+      if (empty) empty.remove();
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.style.cssText = 'padding:0;overflow-x:auto;';
+      card.innerHTML =
+        '<table><thead><tr>' +
+        '<th>Document ID</th><th>Filename</th><th>Pages</th><th>Status</th><th>Created</th><th>Actions</th>' +
+        '</tr></thead><tbody></tbody></table>';
+      const uploadCard = document.getElementById('uploadForm').closest('.card');
+      uploadCard.insertAdjacentElement('afterend', card);
+      tbody = card.querySelector('tbody');
+    }
+    const now = new Date().toISOString().slice(0, 19);
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td style="font-family:\'JetBrains Mono\',monospace;font-size:0.8rem;">' + _escHtml(docId) + '</td>' +
+      '<td>' + _escHtml(filename) + '</td>' +
+      '<td>—</td>' +
+      '<td><span class="badge uploaded">uploaded</span></td>' +
+      '<td style="color:var(--text-muted);font-size:0.8rem;">' + _escHtml(now) + '</td>' +
+      '<td>' +
+        '<a href="/review/' + encodeURIComponent(docId) + '" class="btn btn-outline btn-sm">Review</a> ' +
+        '<button type="button" class="btn btn-primary btn-sm" onclick="processDoc(event,\'' + _escHtml(docId) + '\')">▶ Process</button>' +
+      '</td>';
+    tbody.insertBefore(tr, tbody.firstChild);
+  }
+
   document.getElementById('uploadForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const status = document.getElementById('uploadStatus');
     const fileInput = document.getElementById('file');
     if (!fileInput.files.length) return;
 
+    const fname = fileInput.files[0].name;
     status.textContent = 'Uploading…';
     status.style.color = 'var(--warning)';
 
@@ -83,10 +121,8 @@
       if (res.ok) {
         status.textContent = `✓ Uploaded — ID: ${data.document_id}`;
         status.style.color = 'var(--success)';
-        // Assign a new URL so the browser fetches fresh HTML (reload() can restore BFCache).
-        setTimeout(() => {
-          window.location.assign(`/review?after=${encodeURIComponent(data.document_id)}&_=${Date.now()}`);
-        }, 1000);
+        _injectDocRow(data.document_id, fname);
+        fileInput.value = '';
       } else {
         status.textContent = `✗ ${data.detail || 'Upload failed'}`;
         status.style.color = 'var(--danger)';
@@ -108,7 +144,7 @@
       const data = await res.json();
       if (res.ok) {
         alert(`Done! ${data.pages_succeeded}/${data.pages_processed} pages succeeded, ${data.total_rows_extracted} rows extracted.`);
-        window.location.assign(`/review?_=${Date.now()}`);
+        window.location.replace(`/review?_=${Date.now()}`);
       } else {
         alert(`Error: ${data.detail || 'Processing failed'}`);
         btn.disabled = false;

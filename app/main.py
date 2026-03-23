@@ -52,8 +52,12 @@ app.add_middleware(AuthMiddleware)
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
-# Avoid stale HTML after uploads (BFCache / intermediaries) on hosted deployments.
-_HTML_NO_STORE_HEADERS = {"Cache-Control": "no-store, max-age=0, must-revalidate"}
+# Prevent stale HTML from BFCache, CDN layers, and intermediary proxies.
+_HTML_NO_STORE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 
 # ── Public routes ───────────────────────────────────────────────────
