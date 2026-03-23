@@ -42,8 +42,8 @@
         <td style="color: var(--text-muted); font-size: 0.8rem;">{{ doc.created_at[:19] }}</td>
         <td>
           <a href="/review/{{ doc.id }}" class="btn btn-outline btn-sm">Review</a>
-          {% if doc.status == 'uploaded' %}
-          <button class="btn btn-primary btn-sm" onclick="processDoc('{{ doc.id }}')">▶ Process</button>
+          {% if doc.status and doc.status|lower|trim == 'uploaded' %}
+          <button type="button" class="btn btn-primary btn-sm" onclick="processDoc(event, '{{ doc.id }}')">▶ Process</button>
           {% endif %}
           {% if doc.status in ['completed', 'failed'] %}
           <a href="/data/{{ doc.id }}" class="btn btn-primary btn-sm">📊 View Data</a>
@@ -82,7 +82,10 @@
       if (res.ok) {
         status.textContent = `✓ Uploaded — ID: ${data.document_id}`;
         status.style.color = 'var(--success)';
-        setTimeout(() => location.reload(), 1000);
+        // Assign a new URL so the browser fetches fresh HTML (reload() can restore BFCache).
+        setTimeout(() => {
+          window.location.assign(`/review?after=${encodeURIComponent(data.document_id)}&_=${Date.now()}`);
+        }, 1000);
       } else {
         status.textContent = `✗ ${data.detail || 'Upload failed'}`;
         status.style.color = 'var(--danger)';
@@ -93,9 +96,9 @@
     }
   });
 
-  async function processDoc(docId) {
+  async function processDoc(ev, docId) {
     if (!confirm('Start processing this document?')) return;
-    const btn = event.target;
+    const btn = ev.currentTarget;
     btn.disabled = true;
     btn.textContent = '⏳ Processing…';
 
@@ -104,7 +107,7 @@
       const data = await res.json();
       if (res.ok) {
         alert(`Done! ${data.pages_succeeded}/${data.pages_processed} pages succeeded, ${data.total_rows_extracted} rows extracted.`);
-        location.reload();
+        window.location.assign(`/review?_=${Date.now()}`);
       } else {
         alert(`Error: ${data.detail || 'Processing failed'}`);
         btn.disabled = false;

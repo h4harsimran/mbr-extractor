@@ -105,7 +105,9 @@
       if (res.ok) {
         status.textContent = '✓ Success!';
         status.style.color = 'var(--success)';
-        setTimeout(() => location.reload(), 1000);
+        setTimeout(() => {
+          window.location.assign(`${window.location.pathname}?_=${Date.now()}`);
+        }, 1000);
       } else {
         status.textContent = `✗ ${data.detail || 'Failed'}`;
         status.style.color = 'var(--danger)';
