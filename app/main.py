@@ -63,9 +63,9 @@ def health_check():
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     return templates.TemplateResponse(
-        "login.html",
-        {
-            "request": request,
+        request=request,
+        name="login.html",
+        context={
             "supabase_url": settings.supabase_url,
             "supabase_anon_key": settings.supabase_anon_key,
         },
@@ -290,8 +290,9 @@ def review_dashboard(request: Request):
     """HTML dashboard listing all documents with upload form."""
     docs = db.list_documents()
     return templates.TemplateResponse(
-        "review_dashboard.html",
-        {"request": request, "documents": docs},
+        request=request,
+        name="review_dashboard.html",
+        context={"documents": docs},
     )
 
 
@@ -356,9 +357,9 @@ def review_document(request: Request, document_id: str, status: str = "", review
         enriched_pages.append(enriched)
 
     return templates.TemplateResponse(
-        "review_document.html",
-        {
-            "request": request,
+        request=request,
+        name="review_document.html",
+        context={
             "document": doc,
             "pages": enriched_pages,
             "status_filter": status,
@@ -383,8 +384,9 @@ def list_products_ui(request: Request):
     """HTML page listing all products."""
     products = db.list_products()
     return templates.TemplateResponse(
-        "products.html",
-        {"request": request, "products": products},
+        request=request,
+        name="products.html",
+        context={"products": products},
     )
 
 
@@ -406,8 +408,9 @@ def product_detail_ui(request: Request, product_id: str):
     
     batches = db.list_batches(product_id)
     return templates.TemplateResponse(
-        "product_detail.html",
-        {"request": request, "product": product, "batches": batches},
+        request=request,
+        name="product_detail.html",
+        context={"product": product, "batches": batches},
     )
 
 
@@ -419,8 +422,9 @@ def product_trending_ui(request: Request, product_id: str):
         raise HTTPException(status_code=404, detail="Product not found")
     batches = db.list_batches(product_id)
     return templates.TemplateResponse(
-        "project_trending.html",
-        {"request": request, "product": product, "batches": batches},
+        request=request,
+        name="project_trending.html",
+        context={"product": product, "batches": batches},
     )
 
 
@@ -522,11 +526,11 @@ def batch_detail_ui(request: Request, batch_id: str):
         grouped_docs["Other/Uncategorized"] = other_docs
 
     return templates.TemplateResponse(
-        "batch_detail.html",
-        {
-            "request": request, 
+        request=request,
+        name="batch_detail.html",
+        context={
             "batch": batch, 
             "product": product, 
-            "grouped_documents": grouped_docs
+            "grouped_documents": grouped_docs,
         },
     )
