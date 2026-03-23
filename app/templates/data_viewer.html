@@ -161,7 +161,7 @@ let sortDir = "asc";
 // ── Load data ────────────────────────────────────────────────────
 async function loadData() {
   try {
-    const res = await fetch("/documents/{{ document.id }}/normalized");
+    const res = await fetch("/documents/{{ document.id }}/normalized", { credentials: "include" });
     const data = await res.json();
     const pages = data.pages || [];
 

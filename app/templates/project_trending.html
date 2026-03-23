@@ -63,7 +63,7 @@ const colors = [
 
 async function loadParameters() {
     try {
-        const res = await fetch(`/api/products/${productId}/parameters`);
+        const res = await fetch(`/api/products/${productId}/parameters`, { credentials: 'include' });
         const data = await res.json();
         const container = document.getElementById('parameters-container');
         
@@ -112,7 +112,7 @@ async function plotChart() {
     
     try {
         // Fetch data
-        const res = await fetch(`/api/products/${productId}/trending_data?batch_ids=${encodeURIComponent(selectedBatches.join(','))}&parameters=${encodeURIComponent(selectedParams.join(','))}`);
+        const res = await fetch(`/api/products/${productId}/trending_data?batch_ids=${encodeURIComponent(selectedBatches.join(','))}&parameters=${encodeURIComponent(selectedParams.join(','))}`, { credentials: 'include' });
         const result = await res.json();
         
         if (!res.ok) throw new Error("Failed to fetch data");
