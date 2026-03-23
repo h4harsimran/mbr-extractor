@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Products — MBR Extractor{% endblock %}
+
+{% block content %}
+<h1>🏗️ Products</h1>
+
+<div class="grid-2">
+  <!-- Create Product Card -->
+  <div class="card">
+    <h2>Define New Product</h2>
+    <form action="/products" method="POST">
+      <div class="form-group">
+        <label for="name">Product Name (e.g. XYZ-101)</label>
+        <input type="text" id="name" name="name" placeholder="Enter product name" required>
+      </div>
+      <div class="form-group">
+        <label for="mbr_types">Operation Labels (Comma-separated)</label>
+        <input type="text" id="mbr_types" name="mbr_types" placeholder="Media Prep, Inoculation, Harvest..." required>
+        <small style="color: var(--text-muted); font-size: 0.75rem;">Defines the flow of your process</small>
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">Create Product</button>
+    </form>
+  </div>
+
+  <!-- Product List -->
+  <div class="card" style="padding: 0; overflow: hidden;">
+    <table>
+      <thead>
+        <tr>
+          <th>Product Name</th>
+          <th>Operations</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for prod in products %}
+        <tr>
+          <td><strong>{{ prod.name }}</strong></td>
+          <td>
+            {% for t in prod.mbr_types %}
+            <span class="badge pending" style="font-size: 0.65rem; margin-right: 2px;">{{ t }}</span>
+            {% endfor %}
+          </td>
+          <td>
+            <a href="/products/{{ prod.id }}" class="btn btn-outline btn-sm">Manage</a>
+          </td>
+        </tr>
+        {% endfor %}
+        {% if not products %}
+        <tr><td colspan="3" class="empty-state">No products defined yet.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

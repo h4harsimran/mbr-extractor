@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Batch: {{ batch.lot_number }} — MBR Extractor{% endblock %}
+
+{% block content %}
+<div class="filter-bar">
+    <a href="/products/{{ product.id }}" class="btn btn-outline btn-sm">⬅ Back to {{ product.name }}</a>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
+    <div>
+        <h1 style="margin-bottom: 0.2rem;">🚀 Batch: {{ batch.lot_number }}</h1>
+        <p style="color: var(--text-muted);">Product: <strong>{{ product.name }}</strong></p>
+    </div>
+    <button class="btn btn-primary" onclick="toggleCollapsible('uploadBox')">⬆ Upload MBR to Batch</button>
+</div>
+
+<!-- Hidden Upload Box -->
+<div id="uploadBox" class="card" style="display: none; border: 1px solid var(--accent);">
+    <h2>Add MBR to this Batch</h2>
+    <form id="batchUploadForm" enctype="multipart/form-data">
+        <input type="hidden" name="product_id" value="{{ product.id }}">
+        <input type="hidden" name="batch_id" value="{{ batch.id }}">
+        
+        <div class="grid-2">
+            <div class="form-group">
+                <label for="mbr_type">Operation Label / MBR Type</label>
+                <select name="mbr_type" id="mbr_type" required>
+                    <option value="" disabled selected>Select operation...</option>
+                    {% for t in product.mbr_types %}
+                    <option value="{{ t }}">{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="file">Select PDF</label>
+                <input type="file" id="file" name="file" accept=".pdf" required>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Upload & Associate</button>
+        <span id="uploadStatus" style="margin-left: 1rem; font-size: 0.85rem; color: var(--text-muted);"></span>
+    </form>
+</div>
+
+<!-- Process Sections -->
+{% for type, docs in grouped_documents.items() %}
+<div class="page-section">
+    <div class="page-header">
+        <h3>{{ type }}</h3>
+        <span class="badge pending">{{ docs|length }} documents</span>
+    </div>
+    <div class="page-body" style="padding: 0;">
+        {% if docs %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Filename</th>
+                    <th>Status</th>
+                    <th>Confidence</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for doc in docs %}
+                <tr>
+                    <td>{{ doc.original_filename }}</td>
+                    <td><span class="badge {{ doc.status }}">{{ doc.status }}</span></td>
+                    <td>—</td>
+                    <td>
+                        <a href="/review/{{ doc.id }}" class="btn btn-outline btn-sm">Review</a>
+                        <a href="/data/{{ doc.id }}" class="btn btn-primary btn-sm">📊 Data</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-state" style="padding: 1.5rem;">No documents uploaded for this operation yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleCollapsible(id) {
+    const el = document.getElementById(id);
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+
+  document.getElementById('batchUploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const status = document.getElementById('uploadStatus');
+    const form = e.target;
+    const formData = new FormData(form);
+
+    status.textContent = 'Uploading…';
+    status.style.color = 'var(--warning)';
+
+    try {
+      const res = await fetch('/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (res.ok) {
+        status.textContent = '✓ Success!';
+        status.style.color = 'var(--success)';
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        status.textContent = `✗ ${data.detail || 'Failed'}`;
+        status.style.color = 'var(--danger)';
+      }
+    } catch (err) {
+      status.textContent = `✗ ${err.message}`;
+      status.style.color = 'var(--danger)';
+    }
+  });
+</script>
+{% endblock %}

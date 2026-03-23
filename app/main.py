@@ -4,7 +4,7 @@ import logging
 import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, Form
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -13,7 +13,13 @@ from app import db
 from app.config import settings
 from app.extractor import process_document
 from app.exporter import export_csv
-from app.schemas import DocumentResponse, PageResponse, UploadResponse
+from app.schemas import (
+    DocumentResponse,
+    PageResponse,
+    UploadResponse,
+    ProductResponse,
+    BatchResponse,
+)
 from app.utils import (
     doc_export_path,
     doc_normalized_json_dir,
@@ -62,7 +68,12 @@ def startup() -> None:
 # ── Upload ──────────────────────────────────────────────────────────
 
 @app.post("/upload", response_model=UploadResponse)
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(
+    file: UploadFile = File(...),
+    product_id: Optional[str] = Form(None),
+    batch_id: Optional[str] = Form(None),
+    mbr_type: Optional[str] = Form(None)
+):
     """Upload a PDF batch record for processing."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
@@ -74,8 +85,8 @@ async def upload_pdf(file: UploadFile = File(...)):
     with open(dest, "wb") as f:
         shutil.copyfileobj(file.file, f)
 
-    db.create_document(doc_id, file.filename)
-    logger.info("Uploaded %s as %s", file.filename, doc_id)
+    db.create_document(doc_id, file.filename, product_id=product_id, batch_id=batch_id, mbr_type=mbr_type)
+    logger.info("Uploaded %s as %s (Product: %s, Batch: %s)", file.filename, doc_id, product_id, batch_id)
 
     return UploadResponse(
         document_id=doc_id,
@@ -301,7 +312,75 @@ def data_viewer(request: Request, document_id: str):
     if doc is None:
         raise HTTPException(status_code=404, detail="Document not found")
 
+# ── Products & Batches (Advanced UI) ────────────────────────────────
+
+@app.get("/products", response_class=HTMLResponse)
+def list_products_ui(request: Request):
+    """HTML page listing all products."""
+    products = db.list_products()
     return templates.TemplateResponse(
-        "data_viewer.html",
-        {"request": request, "document": doc},
+        "products.html",
+        {"request": request, "products": products},
+    )
+
+
+@app.post("/products")
+async def create_product_ui(request: Request, name: str = Form(...), mbr_types: str = Form(...)):
+    """Create a new product via form."""
+    # mbr_types is expected as a comma-separated string from the form
+    types_list = [t.strip() for t in mbr_types.split(",") if t.strip()]
+    db.create_product(name, types_list)
+    return list_products_ui(request)
+
+
+@app.get("/products/{product_id}", response_class=HTMLResponse)
+def product_detail_ui(request: Request, product_id: str):
+    """HTML page showing product details and its batches."""
+    product = db.get_product(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    batches = db.list_batches(product_id)
+    return templates.TemplateResponse(
+        "product_detail.html",
+        {"request": request, "product": product, "batches": batches},
+    )
+
+
+@app.post("/products/{product_id}/batches")
+async def create_batch_ui(request: Request, product_id: str, lot_number: str = Form(...)):
+    """Create a new batch for a product."""
+    db.create_batch(product_id, lot_number)
+    return product_detail_ui(request, product_id)
+
+
+@app.get("/batches/{batch_id}", response_class=HTMLResponse)
+def batch_detail_ui(request: Request, batch_id: str):
+    """HTML page showing batch details and its documents."""
+    batch = db.get_batch(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    
+    product = db.get_product(batch["product_id"])
+    documents = db.list_documents(batch_id=batch_id)
+    
+    # Group documents by mbr_type for better visualization
+    grouped_docs = {}
+    if product:
+        for t in product["mbr_types"]:
+            grouped_docs[t] = [d for d in documents if d.get("mbr_type") == t]
+    
+    # Also capture docs that don't match or have no type
+    other_docs = [d for d in documents if d.get("mbr_type") not in (product["mbr_types"] if product else [])]
+    if other_docs:
+        grouped_docs["Other/Uncategorized"] = other_docs
+
+    return templates.TemplateResponse(
+        "batch_detail.html",
+        {
+            "request": request, 
+            "batch": batch, 
+            "product": product, 
+            "grouped_documents": grouped_docs
+        },
     )

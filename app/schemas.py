@@ -82,6 +82,9 @@ class DocumentResponse(BaseModel):
     created_at: str
     updated_at: str
     error_message: Optional[str] = None
+    product_id: Optional[str] = None
+    batch_id: Optional[str] = None
+    mbr_type: Optional[str] = None
 
 
 class PageResponse(BaseModel):
@@ -93,6 +96,22 @@ class PageResponse(BaseModel):
     raw_json_path: Optional[str] = None
     normalized_json_path: Optional[str] = None
     error_message: Optional[str] = None
+    created_at: str
+    updated_at: str
+
+
+class ProductResponse(BaseModel):
+    id: str
+    name: str
+    mbr_types: list[str] = []
+    created_at: str
+    updated_at: str
+
+
+class BatchResponse(BaseModel):
+    id: str
+    product_id: str
+    lot_number: str
     created_at: str
     updated_at: str
 

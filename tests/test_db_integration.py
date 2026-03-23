@@ -66,9 +66,57 @@ def test_page_crud(database):
     assert updated["status"] == "completed"
     assert updated["normalized_json_path"] == "/raw/1.json"
 
+def test_product_and_batch_crud(database):
+    # 1. Create Product
+    prod_name = "Product Alpha"
+    mbr_types = ["Inoculation", "Harvest"]
+    product = db.create_product(prod_name, mbr_types)
+    assert product["name"] == prod_name
+    assert product["mbr_types"] == mbr_types
+    
+    # 2. Create Batch
+    lot = "LOT-101"
+    batch = db.create_batch(product["id"], lot)
+    assert batch["product_id"] == product["id"]
+    assert batch["lot_number"] == lot
+    
+    # 3. List
+    prods = db.list_products()
+    assert any(p["id"] == product["id"] for p in prods)
+    
+    batches = db.list_batches(product["id"])
+    assert len(batches) == 1
+    assert batches[0]["id"] == batch["id"]
+
+def test_document_with_hierarchy(database):
+    # Setup hierarchy
+    product = db.create_product("Hierarchy Test", ["Op1"])
+    batch = db.create_batch(product["id"], "L-999")
+    
+    # Create document linked to batch
+    doc_id = "linked_doc_001"
+    db.create_document(
+        doc_id, 
+        "batch.pdf", 
+        product_id=product["id"], 
+        batch_id=batch["id"], 
+        mbr_type="Op1"
+    )
+    
+    # Verify retrieval
+    doc = db.get_document(doc_id)
+    assert doc["product_id"] == product["id"]
+    assert doc["batch_id"] == batch["id"]
+    assert doc["mbr_type"] == "Op1"
+    
+    # List filtered
+    batch_docs = db.list_documents(batch_id=batch["id"])
+    assert len(batch_docs) == 1
+    assert batch_docs[0]["id"] == doc_id
+
 def test_sql_injection_fix(database):
     """Verify that update functions ignore non-whitelisted columns."""
-    doc_id = "test_doc_injection"
+    doc_id = "test_doc_injection_2"
     db.create_document(doc_id, "safe.pdf")
     
     # Attempt to inject or change restricted field via kwargs
@@ -78,3 +126,9 @@ def test_sql_injection_fix(database):
     fetched = db.get_document(doc_id)
     assert fetched["status"] == "failed"
     assert fetched["original_filename"] == "safe.pdf"  # Should NOT have changed
+    
+    # Verify new columns can be updated if in whitelist
+    prod = db.create_product("Update Test", [])
+    db.update_document(doc_id, product_id=prod["id"])
+    updated = db.get_document(doc_id)
+    assert updated["product_id"] == prod["id"]

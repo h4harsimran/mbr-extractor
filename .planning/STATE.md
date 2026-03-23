@@ -14,13 +14,13 @@ See: .planning/PROJECT.md (updated 2026-03-21)
 | Phase | Name | Status | Requirements |
 |-------|------|--------|-------------|
 | 1 | Database Migration | ● Complete | DB-01, DB-02 |
-| 2 | Projects & Batches | ○ Pending | PROJ-01, PROJ-02, PROJ-03, PROJ-04 |
+| 2 | Products & Batches | ● Complete | PROJ-01, PROJ-02, PROJ-03, PROJ-04 |
 | 3 | Extraction Pipeline | ○ Pending | EXTR-01, EXTR-02, EXTR-03 |
 | 4 | Trending & Analytics | ○ Pending | TREND-01, TREND-02, TREND-03, TREND-04 |
 | 5 | Premium UI & Images | ○ Pending | UI-01, UI-02, UI-03, IMG-01, IMG-02 |
 | 6 | Auth & Deployment | ○ Pending | AUTH-01, AUTH-02, AUTH-03, DB-03 |
 
-**Progress:** 0/6 phases complete
+**Progress:** 1/6 phases complete
 
 ## Decision Log
 
