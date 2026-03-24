@@ -29,9 +29,9 @@ graph TD
 **Why:** Cloudflare Workers limits request body size (100MB max) and CPU time (10ms free, 30s paid). Server-side PDF rendering of a 100-page scanned document would hit maximum limits.
 **How:** The React frontend uses `pdfjs-dist` to render pages to an off-screen HTML `<canvas>`, and converts them to base64 PNGs.
 
-### 2. Page-by-Page Orchestration
-**Why:** Sending a 100-page document in a single request would time out and fail rate limits.
-**How:** The frontend orchestrates the extraction process sequentially (page 1, then page 2, etc.). Each request to the backend contains exactly one base64 image. This keeps payload sizes small (200-500KB) and API request durations well within limits.
+### 2. Parallel Page-by-Page Orchestration
+**Why:** Sending a 100-page document in a single request would time out and fail rate limits, while strictly sequential processing is too slow.
+**How:** The frontend orchestrates the extraction process concurrently using a limited worker pool (e.g., 3 pages at a time). Each request to the backend contains exactly one base64 image. This keeps payload sizes small (200-500KB) and API request durations well within limits while maximizing extraction throughput.
 
 ### 3. Stateless Backend / No Database
 **Why:** This is an MVP. Using Cloudflare D1 or Supabase adds unnecessary complexity for ephemeral data.

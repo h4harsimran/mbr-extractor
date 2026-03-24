@@ -13,7 +13,8 @@ This document explains the step-by-step data lifecycle for extracting manufactur
 - The canvas exports a base64 encoded PNG representation of the page.
 
 ## 3. Worker Extraction Call (`frontend/src/lib/extraction-client.ts`)
-- Frontend issues `POST /api/extract-page`.
+- Pages are processed concurrently by a `Promise` worker pool in `App.tsx` (up to a configured concurrency limit).
+- For each page, the frontend issues `POST /api/extract-page`.
 - Payload: `{ image_base64: "...", page_number: 1, mime_type: "image/png" }`.
 - If a specific page request fails (API timeout, 500), the client retries up to 2 times with a 3-second delay.
 

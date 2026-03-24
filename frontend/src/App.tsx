@@ -40,69 +40,79 @@ export default function App() {
       );
       setPages(initialPages);
 
-      // Process pages sequentially to respect rate limits
+      // Process pages in parallel with a concurrency limit
       const completedExtractions: PageExtraction[] = [];
+      const CONCURRENCY_LIMIT = 3;
+      let currentIndex = 0;
 
-      for (let i = 0; i < totalPages; i++) {
-        if (abortRef.current) break;
+      const worker = async () => {
+        while (currentIndex < totalPages) {
+          if (abortRef.current) break;
+          const i = currentIndex++;
+          const pageNum = i + 1;
 
-        const pageNum = i + 1;
-
-        // Update status to processing
-        setPages((prev) =>
-          prev.map((p) =>
-            p.pageNumber === pageNum ? { ...p, status: "processing" } : p
-          )
-        );
-
-        try {
-          // Render page to image in browser
-          const rendered = await renderPage(pdf, pageNum);
-
-          // Send to worker for Gemini extraction
-          const result = await extractPageFromApi(
-            rendered.base64Image,
-            pageNum
+          // Update status to processing
+          setPages((prev) =>
+            prev.map((p) =>
+              p.pageNumber === pageNum ? { ...p, status: "processing" } : p
+            )
           );
 
-          if (result.success && result.page_extraction) {
-            completedExtractions.push(result.page_extraction);
-            setPages((prev) =>
-              prev.map((p) =>
-                p.pageNumber === pageNum
-                  ? {
-                      ...p,
-                      status: "completed",
-                      extraction: result.page_extraction,
-                    }
-                  : p
-              )
+          try {
+            // Render page to image in browser
+            const rendered = await renderPage(pdf, pageNum);
+
+            // Send to worker for Gemini extraction
+            const result = await extractPageFromApi(
+              rendered.base64Image,
+              pageNum
             );
-          } else {
+
+            if (result.success && result.page_extraction) {
+              completedExtractions.push(result.page_extraction);
+              setPages((prev) =>
+                prev.map((p) =>
+                  p.pageNumber === pageNum
+                    ? {
+                        ...p,
+                        status: "completed",
+                        extraction: result.page_extraction,
+                      }
+                    : p
+                )
+              );
+            } else {
+              setPages((prev) =>
+                prev.map((p) =>
+                  p.pageNumber === pageNum
+                    ? {
+                        ...p,
+                        status: "failed",
+                        error: result.errors.join("; ") || "Unknown error",
+                      }
+                    : p
+                )
+              );
+            }
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : "Unknown error";
             setPages((prev) =>
               prev.map((p) =>
                 p.pageNumber === pageNum
-                  ? {
-                      ...p,
-                      status: "failed",
-                      error: result.errors.join("; ") || "Unknown error",
-                    }
+                  ? { ...p, status: "failed", error: message }
                   : p
               )
             );
           }
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : "Unknown error";
-          setPages((prev) =>
-            prev.map((p) =>
-              p.pageNumber === pageNum
-                ? { ...p, status: "failed", error: message }
-                : p
-            )
-          );
         }
-      }
+      };
+
+      const workers = Array.from(
+        { length: Math.min(CONCURRENCY_LIMIT, totalPages) },
+        worker
+      );
+      await Promise.all(workers);
 
       pdf.destroy();
     } catch (err) {
