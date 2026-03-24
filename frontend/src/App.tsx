@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import FileUpload from "./components/FileUpload";
 import ExtractionProgress from "./components/ExtractionProgress";
 import ResultsView from "./components/ResultsView";
@@ -8,14 +8,35 @@ import type {
   AppState,
   PageProgress,
   PageExtraction,
+  ExtractedRow,
 } from "./types";
 
+const loadInitialState = () => {
+  try {
+    const saved = localStorage.getItem("mbr-session");
+    if (saved) return JSON.parse(saved);
+  } catch (e) {
+    console.error("Failed to parse saved session", e);
+  }
+  return null;
+};
+
 export default function App() {
-  const [appState, setAppState] = useState<AppState>("upload");
-  const [pages, setPages] = useState<PageProgress[]>([]);
-  const [filename, setFilename] = useState("");
-  const [startTime, setStartTime] = useState(0);
+  const [appState, setAppState] = useState<AppState>(
+    () => loadInitialState()?.appState || "upload"
+  );
+  const [pages, setPages] = useState<PageProgress[]>(
+    () => loadInitialState()?.pages || []
+  );
+  const [filename, setFilename] = useState<string>(
+    () => loadInitialState()?.filename || ""
+  );
+  const [startTime, setStartTime] = useState<number>(
+    () => loadInitialState()?.startTime || 0
+  );
   const abortRef = useRef(false);
+
+
 
   const processFile = useCallback(async (file: File) => {
     abortRef.current = false;
@@ -42,7 +63,7 @@ export default function App() {
 
       // Process pages in parallel with a concurrency limit
       const completedExtractions: PageExtraction[] = [];
-      const CONCURRENCY_LIMIT = 3;
+      const CONCURRENCY_LIMIT = 10;
       let currentIndex = 0;
 
       const worker = async () => {
@@ -135,6 +156,42 @@ export default function App() {
     setFilename("");
   }, []);
 
+  const handleUpdateRow = useCallback(
+    (
+      pageNumber: number,
+      rowIndex: number,
+      field: keyof ExtractedRow,
+      value: string | boolean | number
+    ) => {
+      setPages((prev) =>
+        prev.map((p) => {
+          if (p.pageNumber !== pageNumber || !p.extraction) return p;
+          return {
+            ...p,
+            extraction: {
+              ...p.extraction,
+              rows: p.extraction.rows.map((r, i) =>
+                i === rowIndex ? { ...r, [field]: value } : r
+              ),
+            },
+          };
+        })
+      );
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (appState !== "upload") {
+      localStorage.setItem(
+        "mbr-session",
+        JSON.stringify({ appState, pages, filename, startTime })
+      );
+    } else {
+      localStorage.removeItem("mbr-session");
+    }
+  }, [appState, pages, filename, startTime]);
+
   const completedExtractions: PageExtraction[] = pages
     .filter((p) => p.status === "completed" && p.extraction)
     .map((p) => p.extraction!);
@@ -170,6 +227,7 @@ export default function App() {
             filename={filename}
             failedCount={failedCount}
             onReset={handleReset}
+            onUpdateRow={handleUpdateRow}
           />
         )}
       </main>

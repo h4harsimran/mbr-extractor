@@ -26,10 +26,12 @@ Base structural element `.card`.
   - **Completed**: Green text, subtle green bg.
   - **Failed**: Red text, subtle red bg.
 
-### Data Table (ResultsView.tsx)
-- Used to preview the first 50 rows of data in the browser.
-- Integrates a visual `confidence-bar` column: Green (>80%), Yellow (>50%), Red (<50%).
-- Automatically truncates massive result sets to prevent DOM locking.
+### Data Table & Review Grid (ResultsView.tsx)
+- **Inline Editing:** Transformed static `<td>` cells into interactive `<input type="text">` fields.
+- **Auto-Sync:** Edits to page data are immediately mirrored to the React state and `localStorage`.
+- **Confidence Visualization:** Integrates a visual `confidence-bar` column: Green (>80%), Yellow (>50%), Red (<50%).
+- **Interactive Review Badge:** A clickable yellow "Review" badge that can be manually cleared to "OK" by the user.
+- **Pagination:** Replaced static truncation with functional pagination (50 rows per page) for high-performance browsing of large document results.
 
 ## Modifying the Theme
 

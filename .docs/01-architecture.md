@@ -15,27 +15,29 @@ The application extracts structured data from scanned Master Batch Record (MBR) 
 graph TD
     Client[Browser] -->|1. Upload PDF| React[Frontend React App]
     React -->|2. pdfjs extract| Canvas[Off-screen Canvas]
-    Canvas -->|3. base64 PNG| React
+    Canvas -->|3. base64 JPEG| React
     React -->|4. HTTP POST /api/extract-page| Worker[Cloudflare Worker]
     Worker -->|5. HTTP POST| Gemini[Gemini REST API]
     Gemini -->|6. JSON String| Worker
     Worker -->|7. Zod Validation| React
-    React -->|8. Assemble CSV| Download[User CSV Download]
+    React -->|8. Session Persistence| LocalStorage[(LocalStorage)]
+    React -->|9. Inline Review/Edit| UI[Review UI]
+    UI -->|10. Assemble CSV| Download[User CSV Download]
 ```
 
 ## Key Architectural Decisions
 
 ### 1. Client-Side PDF Processing
 **Why:** Cloudflare Workers limits request body size (100MB max) and CPU time (10ms free, 30s paid). Server-side PDF rendering of a 100-page scanned document would hit maximum limits.
-**How:** The React frontend uses `pdfjs-dist` to render pages to an off-screen HTML `<canvas>`, and converts them to base64 PNGs.
+**How:** The React frontend uses `pdfjs-dist` to render pages to an off-screen HTML `<canvas>`, and converts them to base64 JPEGs (compressed for smaller payloads).
 
 ### 2. Parallel Page-by-Page Orchestration
 **Why:** Sending a 100-page document in a single request would time out and fail rate limits, while strictly sequential processing is too slow.
-**How:** The frontend orchestrates the extraction process concurrently using a limited worker pool (e.g., 3 pages at a time). Each request to the backend contains exactly one base64 image. This keeps payload sizes small (200-500KB) and API request durations well within limits while maximizing extraction throughput.
+**How:** The frontend orchestrates the extraction process concurrently using a limited worker pool (10 pages at a time). Each request to the backend contains exactly one base64 image. This keeps payload sizes small (100-300KB) and API request durations well within limits while maximizing extraction throughput.
 
 ### 3. Stateless Backend / No Database
 **Why:** This is an MVP. Using Cloudflare D1 or Supabase adds unnecessary complexity for ephemeral data.
-**How:** The backend worker holds zero state. It acts strictly as a proxy and validation layer. All intermediate state (failed pages, extracted rows) lives in the browser's memory. When extraction finishes, the CSV is built client-side.
+**How:** The backend worker holds zero state. It acts strictly as a proxy and validation layer. Intermediate state (failed pages, extracted rows) is persisted in the browser's `localStorage` to survive page refreshes. When extraction finishes, the CSV is built client-side.
 
 ### 4. Direct REST API calls to Gemini
 **Why:** The official Google Gen AI SDK can sometimes have compatibility issues with Cloudflare Workers' Edge runtime.
@@ -43,3 +45,7 @@ graph TD
 
 ### 5. Type Sharing
 Frontend and Backend share identical structural types (see `frontend/src/types.ts` and `worker/src/types.ts`), keeping the contract strict without requiring a monorepo tooling overhead like Turborepo.
+
+### 6. Interactive Review Layer
+**Why:** AI extraction can occasionally hallucinate or miss illegible handwritten fields. Relying solely on raw output reduces data integrity.
+**How:** A "Review Mode" is implemented in the `ResultsView` component. Users can manually edit parameters, target values, actual results, and units within an interactive data grid before finalizing the CSV download. This human-in-the-loop step ensures 100% accuracy for regulatory compliance.

@@ -665,6 +665,34 @@ body {
   background: var(--error);
 }
 
+/* ── Inline Editing ───────────────────────────────────────────────────── */
+
+.inline-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.inline-input:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.inline-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.inline-input::placeholder {
+  color: var(--text-muted);
+}
+
 /* ── Error State ────────────────────────────────────────────────────── */
 
 .error-banner {

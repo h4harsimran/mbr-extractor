@@ -98,5 +98,5 @@ The best way to deploy is using Cloudflare's GitHub integration.
 
 ## Production Security Notes
 
-1. **CORS:** By default, the `worker/src/index.ts` file has `origin: '*'` in its CORS configuration. Before deploying to a production domain, you should tighten this to only allow your specific Cloudflare Pages domain (e.g., `origin: 'https://mbr-extractor.pages.dev'`).
+1. **CORS:** The `worker/src/index.ts` file is configured via a whitelist. It explicitly allows the local development origin (`http://localhost:5173`) and the production Cloudflare Pages domain (`https://mbr-extractor-frontend.pages.dev`). Any other origins will be rejected.
 2. **API Keys:** The Gemini API key is never exposed to the browser. It securely remains inside the Cloudflare Worker runtime environments.

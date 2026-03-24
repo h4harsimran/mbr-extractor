@@ -10,12 +10,12 @@ This document explains the step-by-step data lifecycle for extracting manufactur
 - `pdfjs-dist` loads the array buffer.
 - For each page, the scale is set to target roughly 200 DPI.
 - The page renders to an off-screen `<canvas>`.
-- The canvas exports a base64 encoded PNG representation of the page.
+- The canvas exports a base64 encoded JPEG representation of the page (quality 0.8) to minimize payload size.
 
 ## 3. Worker Extraction Call (`frontend/src/lib/extraction-client.ts`)
-- Pages are processed concurrently by a `Promise` worker pool in `App.tsx` (up to a configured concurrency limit).
+- Pages are processed concurrently by a `Promise` worker pool in `App.tsx` (set to 10 pages at a time).
 - For each page, the frontend issues `POST /api/extract-page`.
-- Payload: `{ image_base64: "...", page_number: 1, mime_type: "image/png" }`.
+- Payload: `{ image_base64: "...", page_number: 1, mime_type: "image/jpeg" }`.
 - If a specific page request fails (API timeout, 500), the client retries up to 2 times with a 3-second delay.
 
 ## 4. Gemini Proxy (`worker/src/lib/gemini.ts`)
@@ -36,9 +36,16 @@ This document explains the step-by-step data lifecycle for extracting manufactur
 ## 6. Composition & UI Updates (`frontend/src/App.tsx`)
 - Frontend receives the validated data for that page.
 - Modifies React component state, updating the grid UI (`ExtractionProgress.tsx`) to show the page dot changing from "processing" to "completed".
-- Collects `PageExtraction` objects into an in-memory array.
+- **Session Persistence:** The `appState`, `pages` list, and `filename` are mirrored to `localStorage`. This allows the user to refresh the page without losing progress or already extracted data.
 
-## 7. CSV Build (`frontend/src/lib/csv-builder.ts`)
-- Once all pages complete, data is flattened.
+## 7. Manual Review & Inline Editing (`ResultsView.tsx`)
+- Once extraction is complete (or partially complete), the user enters the results view.
+- An interactive data grid displays extracted rows.
+- Users can manually edit `actual_value`, `parameter_label`, etc., to correct OCR/AI hallucinations.
+- Manual edits are immediately saved back to the React state and `localStorage`.
+
+## 8. CSV Build (`frontend/src/lib/csv-builder.ts`)
+- Once the user is satisfied with the reviewed data, they click "Download CSV".
+- The final dataset is flattened.
 - The `lot_number` (often found only on page 1) is propagated down to every row in the final CSV.
 - The CSV is triggered as a `<a download>` object URL, saving to the user's disk without ever touching server-side storage.

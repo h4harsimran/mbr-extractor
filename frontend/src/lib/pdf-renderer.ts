@@ -9,7 +9,7 @@ const RENDER_SCALE = 200 / 72; // 200 DPI (72 is default PDF DPI)
 
 export interface RenderedPage {
   pageNumber: number;
-  base64Image: string; // base64 PNG without data URI prefix
+  base64Image: string; // base64 JPEG without data URI prefix
   width: number;
   height: number;
 }
@@ -44,8 +44,8 @@ export async function renderPage(
 
   await page.render({ canvasContext: ctx, viewport }).promise;
 
-  // Get base64 — strip the "data:image/png;base64," prefix
-  const dataUrl = canvas.toDataURL("image/png");
+  // Get base64 — strip the "data:image/jpeg;base64," prefix
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
   const base64Image = dataUrl.split(",")[1];
 
   // Clean up

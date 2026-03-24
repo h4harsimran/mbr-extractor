@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import type { PageExtraction } from "../types";
+import { useMemo, useState, useEffect } from "react";
+import type { PageExtraction, ExtractedRow } from "../types";
 import { buildCSV, downloadCSV } from "../lib/csv-builder";
 
 interface ResultsViewProps {
@@ -7,6 +7,35 @@ interface ResultsViewProps {
   filename: string;
   failedCount: number;
   onReset: () => void;
+  onUpdateRow: (pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string | boolean) => void;
+}
+
+/** A controlled-looking input that commits changes to parent only on blur,
+ *  preventing focus loss caused by parent re-renders on every keystroke. */
+function EditableCell({
+  initialValue,
+  onCommit,
+}: {
+  initialValue: string;
+  onCommit: (value: string) => void;
+}) {
+  const [value, setValue] = useState(initialValue);
+
+  // Sync when the parent data changes from an external source (e.g. session restore)
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
+
+  return (
+    <input
+      type="text"
+      className="inline-input"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onCommit(value)}
+      placeholder="—"
+    />
+  );
 }
 
 export default function ResultsView({
@@ -14,11 +43,14 @@ export default function ResultsView({
   filename,
   failedCount,
   onReset,
+  onUpdateRow,
 }: ResultsViewProps) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 50;
   const allRows = useMemo(
     () =>
       pages.flatMap((p) =>
-        p.rows.map((r) => ({ ...r, lot_number: p.lot_number }))
+        p.rows.map((r, rowIdx) => ({ ...r, lot_number: p.lot_number, rowIdx }))
       ),
     [pages]
   );
@@ -44,8 +76,20 @@ export default function ResultsView({
     return "confidence-low";
   };
 
-  // Show up to 50 rows in the preview table
-  const previewRows = allRows.slice(0, 50);
+  const totalPagesCount = Math.ceil(totalRows / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const paginatedRows = allRows.slice(startIndex, startIndex + rowsPerPage);
+
+  const handleNextPage = () => setCurrentPage((p) => Math.min(p + 1, totalPagesCount));
+  const handlePrevPage = () => setCurrentPage((p) => Math.max(p - 1, 1));
+
+  const handleCellEdit = (pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string) => {
+    onUpdateRow(pageNumber, rowIndex, field, value);
+    // Unflag review need if actual value or parameter label is modified manually
+    if (field === "actual_value" || field === "parameter_label") {
+      onUpdateRow(pageNumber, rowIndex, "needs_review", false);
+    }
+  };
 
   return (
     <div className="results-container fade-in">
@@ -110,17 +154,33 @@ export default function ResultsView({
             </tr>
           </thead>
           <tbody>
-            {previewRows.map((row, i) => (
-              <tr key={i}>
+            {paginatedRows.map((row, i) => (
+              <tr key={startIndex + i}>
                 <td>{row.page_number}</td>
                 <td style={{ color: "var(--text-primary)", maxWidth: "200px" }}>
-                  {row.parameter_label ?? "—"}
+                  <EditableCell
+                    initialValue={row.parameter_label ?? ""}
+                    onCommit={(v) => handleCellEdit(row.page_number, row.rowIdx, "parameter_label", v)}
+                  />
                 </td>
-                <td>{row.target_value ?? "—"}</td>
+                <td>
+                  <EditableCell
+                    initialValue={row.target_value ?? ""}
+                    onCommit={(v) => handleCellEdit(row.page_number, row.rowIdx, "target_value", v)}
+                  />
+                </td>
                 <td style={{ color: "var(--accent-primary)" }}>
-                  {row.actual_value ?? "—"}
+                  <EditableCell
+                    initialValue={row.actual_value ?? ""}
+                    onCommit={(v) => handleCellEdit(row.page_number, row.rowIdx, "actual_value", v)}
+                  />
                 </td>
-                <td>{row.units ?? "—"}</td>
+                <td>
+                  <EditableCell
+                    initialValue={row.units ?? ""}
+                    onCommit={(v) => handleCellEdit(row.page_number, row.rowIdx, "units", v)}
+                  />
+                </td>
                 <td>{row.performed_by_initials ?? "—"}</td>
                 <td>{row.verified_by_initials ?? "—"}</td>
                 <td>
@@ -136,7 +196,14 @@ export default function ResultsView({
                 </td>
                 <td>
                   {row.needs_review ? (
-                    <span className="badge badge-warning">Review</span>
+                    <span 
+                      className="badge badge-warning" 
+                      style={{cursor: 'pointer'}} 
+                      onClick={() => onUpdateRow(row.page_number, row.rowIdx, "needs_review", false)}
+                      title="Click to clear review flag"
+                    >
+                      Review
+                    </span>
                   ) : (
                     <span className="badge badge-success">OK</span>
                   )}
@@ -147,17 +214,34 @@ export default function ResultsView({
         </table>
       </div>
 
-      {allRows.length > 50 && (
-        <div
-          style={{
-            textAlign: "center",
+      {totalRows > rowsPerPage && (
+        <div className="pagination-controls" style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
             padding: "16px",
             color: "var(--text-muted)",
             fontSize: "13px",
-          }}
-        >
-          Showing first 50 of {allRows.length} rows. Download the CSV for the
-          full dataset.
+        }}>
+          <button 
+            className="btn btn-secondary" 
+            disabled={currentPage === 1} 
+            onClick={handlePrevPage}
+            style={{ padding: '4px 12px', fontSize: '13px' }}
+          >
+            Previous
+          </button>
+          <span>
+            Showing {startIndex + 1} to {Math.min(startIndex + rowsPerPage, totalRows)} of {totalRows} rows. Download the CSV for the full dataset.
+          </span>
+          <button 
+            className="btn btn-secondary" 
+            disabled={currentPage === totalPagesCount} 
+            onClick={handleNextPage}
+            style={{ padding: '4px 12px', fontSize: '13px' }}
+          >
+            Next
+          </button>
         </div>
       )}
     </div>
