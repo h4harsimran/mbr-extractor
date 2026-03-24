@@ -1,14 +1,19 @@
 # Dependencies
-node_modules/
+**/node_modules/
 .pnp
 .pnp.js
 
 # Testing
-coverage/
+**/coverage/
 
 # Production
-dist/
-build/
+**/dist/
+**/build/
+
+# Cloudflare / Wrangler
+**/.wrangler/
+**/.dev.vars
+**/dist-worker/
 
 # IDEs and Misc
 .DS_Store
@@ -16,11 +21,6 @@ build/
 .vscode/
 *.local
 *.log
-
-# Cloudflare / Wrangler
-.wrangler/
-.dev.vars
-dist-worker/
 
 # Local Environment
 .env
