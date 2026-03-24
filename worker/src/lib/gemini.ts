@@ -25,7 +25,7 @@ export async function extractPage(
   imageBase64: string,
   pageNumber: number,
   apiKey: string,
-  model: string = "gemini-2.0-flash",
+  model: string = "gemini-3-flash-preview",
   mimeType: string = "image/png"
 ): Promise<string> {
   const userPrompt = buildUserPrompt(pageNumber);

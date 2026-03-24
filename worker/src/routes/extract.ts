@@ -39,7 +39,7 @@ extractRouter.post("/extract-page", async (c) => {
   }
 
   const apiKey = c.env.GEMINI_API_KEY;
-  const model = c.env.GEMINI_MODEL || "gemini-2.0-flash";
+  const model = c.env.GEMINI_MODEL || "gemini-3-flash-preview";
 
   if (!apiKey) {
     return c.json(
