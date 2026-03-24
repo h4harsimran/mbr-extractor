@@ -53,9 +53,36 @@ cd frontend
 npm install
 ```
 
-### Connect to Github & Deploy via Cloudflare Dashboard (Recommended)
+### Step A: Configure Environment Variables
 
-The easiest way to deploy the frontend is using Cloudflare's GitHub integration.
+Instead of setting variables in the terminal, we recommend using a `.env` file for production builds.
+
+1. In the `frontend` folder, copy `.env.example` to `.env.production`:
+   ```bash
+   cp .env.example .env.production
+   ```
+2. Open `.env.production` in your editor and set `VITE_API_URL` to your Worker URL + `/api`.
+   Example: `VITE_API_URL=https://mbr-extractor-api.<your-subdomain>.workers.dev/api`
+
+### Step B: Build and Deploy
+
+Now that your URL is saved in `.env.production`, you can build and deploy with these simple commands:
+
+```bash
+# 1. Build the production assets
+npm run build
+
+# 2. Deploy to Cloudflare Pages
+npm run deploy
+```
+
+*(The first time you run deploy, Wrangler may ask you to create a new project. Choose a name like `mbr-extractor-frontend`.)*
+
+---
+
+## Alternative: GitHub CI/CD (Recommended)
+
+The best way to deploy is using Cloudflare's GitHub integration.
 
 1. Push your code to GitHub.
 2. Go to the Cloudflare Dashboard -> **Workers & Pages** -> **Create application** -> **Pages** -> **Connect to Git**.
@@ -66,30 +93,8 @@ The easiest way to deploy the frontend is using Cloudflare's GitHub integration.
    - Build output directory: `dist`
 5. **Environment Variables:**
    - Add a variable named `VITE_API_URL`.
-   - Set the value to the Worker URL you copied earlier + `/api`.
-   - Example: `https://mbr-extractor-api.<your-subdomain>.workers.dev/api`
+   - Set the value to the Worker URL (e.g., `https://.../api`).
 6. Click **Save and Deploy**.
-
-### Alternative: Deploy via Wrangler CLI
-
-If you want to deploy directly from your local machine without GitHub integration:
-
-Build the project locally, injecting the environment variable:
-
-```bash
-# Windows (PowerShell):
-$env:VITE_API_URL="https://mbr-extractor-api.<your-subdomain>.workers.dev/api"
-npm run build
-
-# Mac/Linux:
-VITE_API_URL="https://mbr-extractor-api.<your-subdomain>.workers.dev/api" npm run build
-```
-
-Then deploy the generated `dist` folder to Cloudflare Pages:
-
-```bash
-npx wrangler pages deploy dist --project-name mbr-extractor-frontend
-```
 
 ## Production Security Notes
 

@@ -19,7 +19,7 @@ This document explains the step-by-step data lifecycle for extracting manufactur
 
 ## 4. Gemini Proxy (`worker/src/lib/gemini.ts`)
 - Worker receives request.
-- Selects `gemini-2.0-flash` (or environment-configured model).
+- Selects `gemini-3-flash-preview` (or environment-configured model).
 - Builds the specific `userPrompt` combining instructions and the current `page_number`.
 - Uses system instructions (`SYSTEM_PROMPT`) from `worker/src/lib/prompts.ts` telling the model to output strict JSON.
 - Receives text response. Strips markdown fences (` ```json `).
