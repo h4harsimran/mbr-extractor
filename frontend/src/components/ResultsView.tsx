@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
-import { buildCSV, downloadCSV } from "../lib/csv-builder";
-import type { ExtractedRow, PageExtraction, PageProgress } from "../types";
+import ScopedExtractionSummary from "./scope/ScopedExtractionSummary";
+import { buildCSV, buildScopedCSV, downloadCSV } from "../lib/csv-builder";
+import type { ExtractedRow, ExtractionMode, PageExtraction, PageProgress, ScopedPageExtraction } from "../types";
 
 interface ResultsViewProps {
   pages: PageExtraction[];
+  scopedPages: ScopedPageExtraction[];
+  extractionMode: ExtractionMode;
   allPages: PageProgress[];
   filename: string;
   failedCount: number;
@@ -37,7 +40,7 @@ const confidenceClass = (confidence: number) => {
   return "low";
 };
 
-export default function ResultsView({ pages, allPages, filename, failedCount, onReset, onUpdateRow, onRetryPage, onRetryFailed }: ResultsViewProps) {
+export default function ResultsView({ pages, scopedPages, extractionMode, allPages, filename, failedCount, onReset, onUpdateRow, onRetryPage, onRetryFailed }: ResultsViewProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 50;
 
@@ -46,12 +49,13 @@ export default function ResultsView({ pages, allPages, filename, failedCount, on
     [pages]
   );
 
-  const totalRows = allRows.length;
-  const reviewCount = allRows.filter((row) => row.needs_review).length;
-  const editedCount = allRows.filter((row) => row.edited_by_user).length;
-  const avgConfidence = totalRows > 0 ? allRows.reduce((sum, row) => sum + row.extraction_confidence, 0) / totalRows : 0;
-  const successfulPages = pages.length;
-  const lotNumber = pages.find((page) => page.lot_number)?.lot_number ?? "Not detected";
+  const scopedRows = scopedPages.flatMap((page) => page.scoped_results);
+  const totalRows = extractionMode === "scoped" ? scopedRows.length : allRows.length;
+  const reviewCount = extractionMode === "scoped" ? scopedRows.filter((row) => row.needs_review).length : allRows.filter((row) => row.needs_review).length;
+  const editedCount = extractionMode === "scoped" ? scopedRows.filter((row) => row.edited_by_user).length : allRows.filter((row) => row.edited_by_user).length;
+  const avgConfidence = totalRows > 0 ? (extractionMode === "scoped" ? scopedRows.reduce((sum, row) => sum + row.extraction_confidence, 0) : allRows.reduce((sum, row) => sum + row.extraction_confidence, 0)) / totalRows : 0;
+  const successfulPages = extractionMode === "scoped" ? scopedPages.length : pages.length;
+  const lotNumber = (extractionMode === "scoped" ? scopedPages.find((page) => page.lot_number)?.lot_number : pages.find((page) => page.lot_number)?.lot_number) ?? "Not detected";
   const totalPagesCount = Math.max(1, Math.ceil(totalRows / rowsPerPage));
   const startIndex = (currentPage - 1) * rowsPerPage;
   const paginatedRows = allRows.slice(startIndex, startIndex + rowsPerPage);
@@ -59,16 +63,16 @@ export default function ResultsView({ pages, allPages, filename, failedCount, on
 
   const handleDownload = () => {
     if (failedCount > 0 && !window.confirm(`${failedCount} page(s) failed. Export only successful pages?`)) return;
-    const csv = buildCSV(pages);
+    const csv = extractionMode === "scoped" ? buildScopedCSV(scopedPages) : buildCSV(pages);
     const base = filename.replace(/\.pdf$/i, "") || "mbr-extraction";
-    downloadCSV(csv, `${base}-extracted.csv`);
+    downloadCSV(csv, `${base}-${extractionMode === "scoped" ? "scoped" : "extracted"}.csv`);
   };
 
   return (
     <div className="results-container fade-in">
       <div className="results-header">
         <div>
-          <h2 className="results-title">Extraction Results</h2>
+          <h2 className="results-title">{extractionMode === "scoped" ? "Scoped Extraction Results" : "Extraction Results"}</h2>
           <div className="results-subtitle">{filename}</div>
         </div>
         <div className="results-actions">
@@ -86,7 +90,7 @@ export default function ResultsView({ pages, allPages, filename, failedCount, on
         <div className="stat-card"><div className="stat-value">{allPages.length}</div><div className="stat-label">Total pages</div></div>
         <div className="stat-card"><div className="stat-value">{successfulPages}</div><div className="stat-label">Successful pages</div></div>
         <div className="stat-card"><div className="stat-value">{failedCount}</div><div className="stat-label">Failed pages</div></div>
-        <div className="stat-card"><div className="stat-value">{totalRows}</div><div className="stat-label">Rows</div></div>
+        <div className="stat-card"><div className="stat-value">{totalRows}</div><div className="stat-label">{extractionMode === "scoped" ? "Scoped results" : "Rows"}</div></div>
         <div className="stat-card"><div className="stat-value">{reviewCount}</div><div className="stat-label">Need review</div></div>
         <div className="stat-card"><div className="stat-value">{editedCount}</div><div className="stat-label">Edited</div></div>
         <div className="stat-card"><div className="stat-value">{(avgConfidence * 100).toFixed(0)}%</div><div className="stat-label">Avg confidence</div></div>
@@ -105,6 +109,9 @@ export default function ResultsView({ pages, allPages, filename, failedCount, on
         </div>
       )}
 
+      {extractionMode === "scoped" ? (
+        <ScopedExtractionSummary pages={scopedPages} />
+      ) : (
       <div className="data-table-wrapper">
         <table className="data-table">
           <thead>
@@ -131,8 +138,9 @@ export default function ResultsView({ pages, allPages, filename, failedCount, on
           </tbody>
         </table>
       </div>
+      )}
 
-      {totalRows > rowsPerPage && (
+      {extractionMode !== "scoped" && totalRows > rowsPerPage && (
         <div className="pagination-controls" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 16 }}>
           <button className="btn btn-secondary" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Previous</button>
           <span>Showing {startIndex + 1} to {Math.min(startIndex + rowsPerPage, totalRows)} of {totalRows} rows.</span>

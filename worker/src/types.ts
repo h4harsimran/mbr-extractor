@@ -9,6 +9,13 @@ export type WarningCode =
   | "MODEL_SCHEMA_REPAIR"
   | "EXCESS_ROWS";
 
+export type ScopedReviewReason =
+  | "PARAMETER_NOT_FOUND_ON_PAGE"
+  | "MISSING_ACTUAL_VALUE"
+  | "UNIT_MISMATCH"
+  | "LOW_CONFIDENCE"
+  | "AMBIGUOUS_VALUE";
+
 export interface ExtractionWarning {
   code: WarningCode;
   message: string;
@@ -40,6 +47,32 @@ export interface PageExtraction {
   warnings?: ExtractionWarning[];
 }
 
+export interface ScopedExtractionResult {
+  parameter_id: string;
+  display_name: string;
+  matched: boolean;
+  target_value: string | null;
+  actual_value: string | null;
+  units: string | null;
+  source_label: string | null;
+  nearby_text: string | null;
+  comments: string | null;
+  performed_by_initials: string | null;
+  performed_date: string | null;
+  verified_by_initials: string | null;
+  verified_date: string | null;
+  extraction_confidence: number;
+  needs_review: boolean;
+  review_reasons: string[];
+  edited_by_user?: boolean;
+}
+
+export interface ScopedPageExtraction {
+  page_number: number;
+  lot_number: string | null;
+  scoped_results: ScopedExtractionResult[];
+}
+
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
@@ -51,6 +84,8 @@ export interface ExtractPageRequest {
   image_base64: string;
   page_number: number;
   mime_type?: string;
+  extraction_mode?: "full" | "scoped";
+  scope?: unknown;
 }
 
 export type ApiErrorCode =
@@ -58,7 +93,8 @@ export type ApiErrorCode =
   | "PAYLOAD_TOO_LARGE"
   | "PROVIDER_FAILED"
   | "INVALID_MODEL_JSON"
-  | "SERVER_MISCONFIGURED";
+  | "SERVER_MISCONFIGURED"
+  | "INVALID_SCOPE_INPUT";
 
 export interface ApiError {
   code: ApiErrorCode;
@@ -68,6 +104,7 @@ export interface ApiError {
 export interface ExtractPageResponse {
   success: boolean;
   page_extraction: PageExtraction | null;
+  scoped_page_extraction?: ScopedPageExtraction | null;
   errors: ApiError[];
   raw_text?: string;
 }

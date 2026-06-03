@@ -3,8 +3,10 @@
 import { Hono } from "hono";
 import { getConfig } from "../config";
 import { errorResponse } from "../lib/api-errors";
-import { extractPage } from "../lib/gemini";
+import { extractPage, extractScopedPage } from "../lib/gemini";
 import { parseAndValidateExtractRequest } from "../lib/request-validation";
+import { validateScopedPageResponse } from "../lib/scoped-extraction-validator";
+import { validateScopedPlan } from "../lib/scope-schema";
 import { validatePageResponse } from "../lib/validator";
 import type { Env, ExtractPageResponse } from "../types";
 
@@ -29,9 +31,41 @@ extractRouter.post("/extract-page", async (c) => {
     return c.json(errorResponse("SERVER_MISCONFIGURED"), 500);
   }
 
-  const { image_base64, page_number, mime_type } = requestResult.value;
+  const { image_base64, page_number, mime_type, extraction_mode, scope } = requestResult.value;
 
   try {
+    if (extraction_mode === "scoped") {
+      const scopeResult = validateScopedPlan(scope);
+      if (!scopeResult.success) {
+        return c.json(
+          { success: false, page_extraction: null, scoped_page_extraction: null, errors: [errorResponse("INVALID_SCOPE_INPUT").errors[0]] } satisfies ExtractPageResponse,
+          400
+        );
+      }
+
+      const rawText = await extractScopedPage(
+        image_base64,
+        page_number,
+        scopeResult.data,
+        config.geminiApiKey,
+        config.geminiModel,
+        mime_type
+      );
+      const result = validateScopedPageResponse(rawText, page_number, scopeResult.data);
+      if (!result.valid || !result.scoped_page_extraction) return c.json(errorResponse("INVALID_MODEL_JSON"), 502);
+
+      return c.json(
+        {
+          success: true,
+          page_extraction: null,
+          scoped_page_extraction: result.scoped_page_extraction,
+          errors: [],
+          ...(config.debugRawModelOutput ? { raw_text: rawText } : {}),
+        } satisfies ExtractPageResponse,
+        200
+      );
+    }
+
     const rawText = await extractPage(
       image_base64,
       page_number,

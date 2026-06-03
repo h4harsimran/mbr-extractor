@@ -7,7 +7,7 @@ const page = { page_number: 1, lot_number: "LOT", rows: [{ page_number: 1, row_i
 describe("ResultsView", () => {
   it("commits editable cell changes", () => {
     const onUpdateRow = vi.fn();
-    render(<ResultsView pages={[page]} allPages={[{ pageNumber: 1, status: "completed", extraction: page, error: null }]} filename="x.pdf" failedCount={0} onReset={vi.fn()} onUpdateRow={onUpdateRow} onRetryPage={vi.fn()} onRetryFailed={vi.fn()} />);
+    render(<ResultsView pages={[page]} scopedPages={[]} extractionMode="full" allPages={[{ pageNumber: 1, status: "completed", extraction: page, error: null }]} filename="x.pdf" failedCount={0} onReset={vi.fn()} onUpdateRow={onUpdateRow} onRetryPage={vi.fn()} onRetryFailed={vi.fn()} />);
     const input = screen.getByDisplayValue("Temp");
     fireEvent.change(input, { target: { value: "Temperature" } });
     fireEvent.blur(input);
@@ -15,7 +15,7 @@ describe("ResultsView", () => {
   });
 
   it("shows failed page warning", () => {
-    render(<ResultsView pages={[page]} allPages={[{ pageNumber: 1, status: "completed", extraction: page, error: null }, { pageNumber: 2, status: "failed", extraction: null, error: "bad" }]} filename="x.pdf" failedCount={1} onReset={vi.fn()} onUpdateRow={vi.fn()} onRetryPage={vi.fn()} onRetryFailed={vi.fn()} />);
+    render(<ResultsView pages={[page]} scopedPages={[]} extractionMode="full" allPages={[{ pageNumber: 1, status: "completed", extraction: page, error: null }, { pageNumber: 2, status: "failed", extraction: null, error: "bad" }]} filename="x.pdf" failedCount={1} onReset={vi.fn()} onUpdateRow={vi.fn()} onRetryPage={vi.fn()} onRetryFailed={vi.fn()} />);
     expect(screen.getByText(/1 page failed/)).toBeInTheDocument();
   });
 });

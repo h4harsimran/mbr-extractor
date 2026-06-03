@@ -4,9 +4,9 @@ import ExtractionProgress from "./components/ExtractionProgress";
 import ResultsView from "./components/ResultsView";
 import UploadPreflight from "./components/UploadPreflight";
 import { bytesToMb, extractionConfig } from "./config/extraction";
-import { extractPageFromApi } from "./lib/extraction-client";
+import { buildScopeFromApi, extractPageFromApi } from "./lib/extraction-client";
 import { loadPdf, renderPage } from "./lib/pdf-renderer";
-import type { AppState, ExtractedRow, PageExtraction, PageProgress, UploadPreflight as UploadPreflightData } from "./types";
+import type { AppState, ExtractedRow, ExtractionMode, PageExtraction, PageProgress, ScopedExtractionPlan, ScopedExtractionResult, ScopedPageExtraction, UploadPreflight as UploadPreflightData } from "./types";
 
 const SESSION_KEY = "mbr-session";
 
@@ -28,6 +28,13 @@ export default function App() {
   const [startTime, setStartTime] = useState<number>(() => saved?.startTime || 0);
   const [preflight, setPreflight] = useState<UploadPreflightData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [extractionMode, setExtractionMode] = useState<ExtractionMode>(() => saved?.extractionMode || "full");
+  const [rawParameters, setRawParameters] = useState<string>(() => saved?.rawParameters || "");
+  const [documentContext, setDocumentContext] = useState<string>(() => saved?.documentContext || "");
+  const [scopedPlan, setScopedPlan] = useState<ScopedExtractionPlan | null>(() => saved?.scopedPlan || null);
+  const [scopeApproved, setScopeApproved] = useState<boolean>(() => saved?.scopeApproved || false);
+  const [scopeLoading, setScopeLoading] = useState(false);
+  const [scopeWarnings, setScopeWarnings] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const initializePages = (totalPages: number): PageProgress[] =>
@@ -35,6 +42,7 @@ export default function App() {
       pageNumber: i + 1,
       status: "pending",
       extraction: null,
+      scopedExtraction: null,
       error: null,
     }));
 
@@ -103,12 +111,12 @@ export default function App() {
           try {
             const rendered = await renderPage(pdf!, pageNum);
             if (controller.signal.aborted) throw new DOMException("Extraction cancelled", "AbortError");
-            const result = await extractPageFromApi(rendered.base64Image, pageNum, rendered.mimeType, controller.signal);
-            if (result.success && result.page_extraction) {
+            const result = await extractPageFromApi(rendered.base64Image, pageNum, rendered.mimeType, controller.signal, extractionMode === "scoped" ? scopedPlan ?? undefined : undefined);
+            if (result.success && (result.page_extraction || result.scoped_page_extraction)) {
               setPages((prev) =>
                 prev.map((p) =>
                   p.pageNumber === pageNum
-                    ? { ...p, status: "completed", extraction: result.page_extraction, error: null }
+                    ? { ...p, status: "completed", extraction: result.page_extraction, scopedExtraction: result.scoped_page_extraction ?? null, error: null }
                     : p
                 )
               );
@@ -142,7 +150,7 @@ export default function App() {
       abortControllerRef.current = null;
       setAppState("results");
     }
-  }, [preflight]);
+  }, [preflight, extractionMode, scopedPlan]);
 
   const handleCancelExtraction = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -155,6 +163,12 @@ export default function App() {
     setFilename("");
     setPreflight(null);
     setError(null);
+    setExtractionMode("full");
+    setRawParameters("");
+    setDocumentContext("");
+    setScopedPlan(null);
+    setScopeApproved(false);
+    setScopeWarnings([]);
   }, []);
 
   const handleUpdateRow = useCallback((pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string | boolean | number) => {
@@ -174,15 +188,42 @@ export default function App() {
     );
   }, []);
 
+
+  const handleBuildScope = useCallback(async () => {
+    setScopeLoading(true);
+    setError(null);
+    setScopeWarnings([]);
+    try {
+      const response = await buildScopeFromApi(rawParameters, documentContext);
+      if (response.success && response.scope) {
+        setScopedPlan(response.scope);
+        setScopeApproved(false);
+        setScopeWarnings(response.warnings ?? []);
+      } else {
+        setError(response.error?.message ?? "Failed to build extraction scope.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to build extraction scope.");
+    } finally {
+      setScopeLoading(false);
+    }
+  }, [rawParameters, documentContext]);
+
+  const handleScopeChange = useCallback((scope: ScopedExtractionPlan) => {
+    setScopedPlan(scope);
+    setScopeApproved(false);
+  }, []);
+
   useEffect(() => {
     if (appState !== "upload") {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ appState, pages, filename, startTime }));
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ appState, pages, filename, startTime, extractionMode, rawParameters, documentContext, scopedPlan, scopeApproved }));
     } else {
       localStorage.removeItem(SESSION_KEY);
     }
-  }, [appState, pages, filename, startTime]);
+  }, [appState, pages, filename, startTime, extractionMode, rawParameters, documentContext, scopedPlan, scopeApproved]);
 
   const completedExtractions: PageExtraction[] = pages.filter((p) => p.status === "completed" && p.extraction).map((p) => p.extraction!);
+  const completedScopedExtractions: ScopedPageExtraction[] = pages.filter((p) => p.status === "completed" && p.scopedExtraction).map((p) => p.scopedExtraction!);
   const failedPages = pages.filter((p) => p.status === "failed");
 
   return (
@@ -196,7 +237,24 @@ export default function App() {
       <main className="app-content">
         {appState === "upload" && <FileUpload onFileSelected={prepareFile} error={error} />}
         {appState === "preflight" && preflight && (
-          <UploadPreflight preflight={preflight} onStart={() => processPages()} onCancel={handleReset} />
+          <UploadPreflight
+            preflight={preflight}
+            extractionMode={extractionMode}
+            rawParameters={rawParameters}
+            documentContext={documentContext}
+            scopedPlan={scopedPlan}
+            scopeApproved={scopeApproved}
+            scopeLoading={scopeLoading}
+            scopeWarnings={scopeWarnings}
+            onModeChange={(mode) => { setExtractionMode(mode); setScopeApproved(false); }}
+            onRawParametersChange={(value) => { setRawParameters(value); setScopeApproved(false); }}
+            onDocumentContextChange={setDocumentContext}
+            onBuildScope={handleBuildScope}
+            onScopeChange={handleScopeChange}
+            onApproveScope={() => setScopeApproved(true)}
+            onStart={() => processPages()}
+            onCancel={handleReset}
+          />
         )}
         {appState === "processing" && (
           <ExtractionProgress pages={pages} filename={filename} startTime={startTime} onCancel={handleCancelExtraction} />
@@ -204,6 +262,8 @@ export default function App() {
         {appState === "results" && (
           <ResultsView
             pages={completedExtractions}
+            scopedPages={completedScopedExtractions}
+            extractionMode={extractionMode}
             allPages={pages}
             filename={filename}
             failedCount={failedPages.length}

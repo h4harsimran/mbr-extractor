@@ -785,3 +785,74 @@ body {
   border-color: var(--accent-primary);
   background: rgba(255, 255, 255, 0.04);
 }
+
+.scope-panel {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  margin-top: 24px;
+  background: var(--surface);
+}
+
+.scope-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+.scope-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.scope-textarea {
+  width: 100%;
+  min-height: 140px;
+  margin: 8px 0 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+}
+
+.scope-textarea-small {
+  min-height: 80px;
+}
+
+.input-label {
+  display: block;
+  font-weight: 700;
+  margin-top: 10px;
+}
+
+.scope-review-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-top: 12px;
+  background: var(--background);
+}
+
+.scope-review-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.scope-review-row .editable-cell {
+  flex: 1;
+}
+
+.scope-review-meta {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
