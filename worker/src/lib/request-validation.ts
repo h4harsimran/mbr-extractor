@@ -6,7 +6,7 @@ const SUPPORTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const BASE64_RE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export type RequestValidationResult =
-  | { ok: true; value: Required<ExtractPageRequest> }
+  | { ok: true; value: Required<Pick<ExtractPageRequest, "image_base64" | "page_number" | "mime_type">> & Pick<ExtractPageRequest, "extraction_mode" | "scope"> }
   | { ok: false; status: 400 | 413; error: ReturnType<typeof apiError> };
 
 export async function parseAndValidateExtractRequest(
@@ -69,6 +69,8 @@ export async function parseAndValidateExtractRequest(
       image_base64: candidate.image_base64,
       page_number: candidate.page_number!,
       mime_type: mimeType,
+      extraction_mode: candidate.extraction_mode === "scoped" ? "scoped" : "full",
+      scope: candidate.scope,
     },
   };
 }

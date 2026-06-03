@@ -6,6 +6,7 @@ const DEFAULT_MESSAGES: Record<ApiErrorCode, string> = {
   PROVIDER_FAILED: "provider failed",
   INVALID_MODEL_JSON: "invalid model JSON",
   SERVER_MISCONFIGURED: "server misconfigured",
+  INVALID_SCOPE_INPUT: "invalid scope input",
 };
 
 export function apiError(code: ApiErrorCode, message = DEFAULT_MESSAGES[code]): ApiError {

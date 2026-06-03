@@ -2,6 +2,7 @@
 
 import { Hono } from "hono";
 import extractRouter from "./routes/extract";
+import buildScopeRouter from "./routes/build-scope";
 import { getConfig, isAllowedOrigin } from "./config";
 import type { Env } from "./types";
 
@@ -39,5 +40,6 @@ app.use("*", async (c, next) => {
 
 app.get("/api/health", (c) => c.json({ status: "ok", service: "mbr-extractor-api" }));
 app.route("/api", extractRouter);
+app.route("/api", buildScopeRouter);
 
 export default app;

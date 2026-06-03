@@ -9,7 +9,8 @@ MBR Extractor renders PDF pages in the browser, sends page images to a Cloudflar
 ## Features
 
 - Browser-side PDF rendering with `pdf.js`
-- Upload preflight with file size, page count, estimated API calls, and privacy notice
+- Upload preflight with file size, page count, estimated API calls, extraction mode, and privacy notice
+- Scoped Extraction mode that builds a reviewed, user-approved parameter plan before page extraction
 - Conservative extraction concurrency and page/file limits to protect API cost
 - Cloudflare Worker request validation before Gemini calls
 - Hardened API error shape without raw provider/model output in production
@@ -33,8 +34,9 @@ MBR Extractor renders PDF pages in the browser, sends page images to a Cloudflar
 ```text
 Frontend: React + Vite + TypeScript       Worker: Hono on Cloudflare Workers
 PDF upload and pdf.js rendering     ───▶  POST /api/extract-page
+Scoped parameter list               ───▶  POST /api/build-scope
 Review/edit extracted rows          ◀───  Gemini call + Zod validation
-CSV export in browser                     No app database/auth/storage
+CSV export in browser                     Scope kept in frontend state/localStorage
 ```
 
 ## Local development
@@ -81,6 +83,47 @@ Worker:
 { "status": "ok", "service": "mbr-extractor-api" }
 ```
 
+
+### `POST /api/build-scope`
+
+Converts inert user-provided parameter text into a normalized scoped extraction plan. The Worker rejects empty, too-long, too-many, or instruction-like inputs before page extraction uses the scope. The generated plan is validated with Zod and is not persisted server-side.
+
+Request:
+
+```json
+{
+  "raw_parameters": "Bioreactor temperature\npH\nDissolved oxygen",
+  "document_context": "Cell therapy manufacturing batch record",
+  "mode": "scoped_mbr"
+}
+```
+
+Success:
+
+```json
+{
+  "success": true,
+  "scope": {
+    "scope_version": 1,
+    "document_type": "master_batch_record",
+    "extraction_mode": "scoped",
+    "parameters": [
+      {
+        "parameter_id": "ph",
+        "display_name": "pH",
+        "description": "pH value requested for extraction.",
+        "expected_units": [],
+        "synonyms": ["pH"],
+        "value_types": ["actual_value"],
+        "required_evidence": ["page_number", "source_label", "nearby_text"],
+        "needs_review_rules": ["missing_actual_value", "unit_mismatch", "low_confidence"]
+      }
+    ]
+  },
+  "warnings": []
+}
+```
+
 ### `POST /api/extract-page`
 
 Request:
@@ -89,7 +132,8 @@ Request:
 {
   "image_base64": "base64-encoded-page-image",
   "page_number": 1,
-  "mime_type": "image/jpeg"
+  "mime_type": "image/jpeg",
+  "extraction_mode": "full"
 }
 ```
 
@@ -125,6 +169,9 @@ Success:
 }
 ```
 
+
+Scoped extraction requests set `extraction_mode` to `scoped` and include the approved validated scope object. Scoped responses include `scoped_page_extraction` with one result per requested parameter and explicit `matched: false` rows when a parameter is not found on the page.
+
 Error responses use a sanitized shape and do not expose raw Gemini/provider bodies:
 
 ```json
@@ -135,9 +182,11 @@ Error responses use a sanitized shape and do not expose raw Gemini/provider bodi
 }
 ```
 
-Possible error codes include `INVALID_REQUEST`, `PAYLOAD_TOO_LARGE`, `PROVIDER_FAILED`, `INVALID_MODEL_JSON`, and `SERVER_MISCONFIGURED`.
+Possible error codes include `INVALID_REQUEST`, `PAYLOAD_TOO_LARGE`, `PROVIDER_FAILED`, `INVALID_MODEL_JSON`, `INVALID_SCOPE_INPUT`, and `SERVER_MISCONFIGURED`.
 
 ## Extracted CSV Fields
+
+Full extraction CSV fields:
 
 ```text
 page_number
@@ -155,6 +204,30 @@ verified_date
 extraction_confidence
 needs_review
 review_reason
+edited_by_user
+```
+
+Scoped extraction CSV fields:
+
+```text
+parameter_id
+parameter_name
+matched
+page_number
+lot_number
+target_value
+actual_value
+units
+source_label
+nearby_text
+comments
+performed_by_initials
+performed_date
+verified_by_initials
+verified_date
+extraction_confidence
+needs_review
+review_reasons
 edited_by_user
 ```
 
