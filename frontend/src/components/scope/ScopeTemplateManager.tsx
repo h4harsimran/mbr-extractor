@@ -3,6 +3,7 @@ import type { ScopedExtractionPlan, ScopedExtractionTemplate } from "../../types
 import { builtInScopeTemplates } from "../../lib/builtin-scope-templates";
 import { createScopedTemplate, loadScopedTemplates, saveScopedTemplates, upsertTemplate } from "../../lib/scope-template-store";
 import { validateScopedExtractionPlan } from "../../lib/scope-validation";
+import { resolveTemplateImportCollisions } from "../../lib/scope-template-io";
 import ScopeTemplateImportExport from "./ScopeTemplateImportExport";
 
 interface Props {
@@ -54,7 +55,7 @@ export default function ScopeTemplateManager({ currentScope, onLoadScope }: Prop
     <div className="scope-panel" aria-label="Scoped extraction templates">
       <h3 className="scope-title">Saved templates</h3>
       <p className="upload-hint">Templates are stored only in browser localStorage. Loaded or imported templates must be approved before extraction starts.</p>
-      {message && <div className="error-banner" style={{ marginBottom: 12 }}>{message}</div>}
+      {message && <div className="info-banner" style={{ marginBottom: 12 }}>{message}</div>}
       <div className="scope-review-row">
         <select aria-label="Saved template" className="editable-cell" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
           <optgroup label="Local templates">
@@ -76,8 +77,9 @@ export default function ScopeTemplateManager({ currentScope, onLoadScope }: Prop
         templates={templates}
         selectedTemplate={selectedTemplate && !selectedTemplate.template_id.startsWith("builtin_") ? selectedTemplate : null}
         onImport={(imported, summary) => {
-          setTemplates((prev) => imported.reduce((next, template) => upsertTemplate(next, template), prev));
-          setMessage(`Import summary: ${summary.imported} imported, ${summary.skipped} skipped.`);
+          const resolved = resolveTemplateImportCollisions(imported, templates);
+          setTemplates((prev) => resolved.templates.reduce((next, template) => upsertTemplate(next, template), prev));
+          setMessage(`Import summary: ${resolved.imported} imported, ${summary.skipped} skipped, ${resolved.renamed} renamed.`);
         }}
       />
     </div>

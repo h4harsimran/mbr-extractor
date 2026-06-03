@@ -29,3 +29,11 @@ This project is not a validated GMP system. Use it as a portfolio/MVP tool with 
 - Review queue items are derived from existing row review flags: full rows with `needs_review`, and scoped rows with `needs_review` or `matched === false`.
 - Scoped extraction templates are local-only browser aids for reusing parameter plans. They do not add authentication, organizations, database persistence, billing, audit trails, signatures, queues, R2, or SaaS administration.
 - Imported templates are treated as untrusted JSON and must pass deterministic frontend validation before loading. Users must still approve loaded templates before scoped extraction starts.
+
+## Final production-readiness boundaries
+
+- Side-by-side review is for human verification only and is not a validated GMP review, electronic signature, audit-trail, or release-decision system.
+- Scoped templates are local browser data only. Exports may contain sensitive process parameter names and expected units.
+- Imported templates are untrusted JSON. They are validated before use and must be approved by the user before scoped extraction can run.
+- Page previews are rendered page images kept in memory-only React state and intentionally not persisted to localStorage.
+- No uploaded PDFs are intentionally stored server-side.

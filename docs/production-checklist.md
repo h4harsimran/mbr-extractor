@@ -43,3 +43,14 @@ In the Cloudflare dashboard, add a rate-limit/WAF rule for `POST /api/extract-pa
 - Confirm rendered page previews remain in memory only and are not saved to localStorage.
 - Confirm scoped templates are saved only to browser localStorage and can be exported/imported as JSON.
 - Confirm imported scoped templates require user review and approval before extraction.
+
+## Final verification additions
+
+- Verify side-by-side review works for both full and scoped modes and communicates that human verification is required.
+- Verify scoped extraction cannot start unless a valid scope is approved.
+- Verify retrying a page replaces that page preview in memory and reset clears all previews.
+- Verify session localStorage contains no `pagePreviews`, `dataUrl`, or `base64Image` keys.
+- Verify imported template ID collisions create renamed local templates and never overwrite existing local templates.
+- Verify exported templates are handled as sensitive because they can contain process parameter names.
+- Verify Worker logs and client responses do not include raw model output, request JSON bodies, page image base64, provider response bodies, uploaded document text, or API keys. Raw model output should be returned only with `DEBUG_RAW_MODEL_OUTPUT=true`.
+- Verify CI triggers on push to both `dev` and `main`.

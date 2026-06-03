@@ -92,8 +92,7 @@ router.post("/build-scope", async (c) => {
     if (!result.success) return c.json(errorResponse("INVALID_MODEL_JSON"), 502);
     return c.json({ success: true, scope: result.data, warnings }, 200);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`Scope builder failed: ${message}`);
+    console.error("Scope builder failed", { route: "build-scope", error_class: err instanceof Error ? err.name : typeof err, message: "Provider request failed" });
     return c.json(errorResponse("PROVIDER_FAILED"), 502);
   }
 });

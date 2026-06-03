@@ -37,16 +37,17 @@ export const SCOPED_CSV_COLUMNS = [
   "verified_date",
   "extraction_confidence",
   "needs_review",
+  "review_status",
   "review_reasons",
   "edited_by_user",
 ] as const;
 
-const FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"];
+const FORMULA_RE = /^\s*[=+\-@\t\r]/;
 
 export function escapeCSV(value: unknown): string {
   if (value === null || value === undefined) return "";
   let str = Array.isArray(value) ? value.join("; ") : String(value);
-  if (FORMULA_PREFIXES.some((prefix) => str.startsWith(prefix))) str = `'${str}`;
+  if (FORMULA_RE.test(str)) str = `'${str}`;
   if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
     return `"${str.replace(/"/g, '""')}"`;
   }

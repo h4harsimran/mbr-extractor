@@ -983,3 +983,17 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.info-banner {
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}

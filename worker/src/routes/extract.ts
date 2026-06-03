@@ -88,8 +88,7 @@ extractRouter.post("/extract-page", async (c) => {
 
     return c.json(response, 200);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error(`Extraction provider failed for page ${page_number}: ${message}`);
+    console.error("Extraction provider failed", { route: "extract", page_number, error_class: err instanceof Error ? err.name : typeof err, message: "Provider request failed" });
     return c.json(errorResponse("PROVIDER_FAILED"), 502);
   }
 });

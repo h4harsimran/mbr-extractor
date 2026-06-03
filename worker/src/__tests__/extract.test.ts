@@ -40,6 +40,13 @@ describe("extract-page", () => {
     expect(await res.json()).toMatchObject({ errors: [{ code: "PROVIDER_FAILED", message: "provider failed" }] });
   });
 
+  it("does not log provider response bodies", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("secret provider body", { status: 500 }));
+    await request(validBody);
+    expect(JSON.stringify(errorSpy.mock.calls)).not.toContain("secret provider body");
+  });
+
   it("handles invalid model JSON", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ candidates: [{ content: { parts: [{ text: "not json" }] } }] }));
     expect((await request(validBody)).status).toBe(502);
