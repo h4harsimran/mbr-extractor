@@ -14,6 +14,7 @@
   <img alt="Vite" src="https://img.shields.io/badge/Vite-6-646CFF">
   <img alt="Cloudflare Workers" src="https://img.shields.io/badge/Cloudflare-Workers-F38020">
   <img alt="Gemini" src="https://img.shields.io/badge/Gemini-API-4285F4">
+  <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg">
 </p>
 
 MBR Extractor converts scanned or image-based Master Batch Record pages into structured reviewable rows and exports the result as CSV. The frontend renders each PDF page in the browser, sends page images to a Cloudflare Worker, validates the Gemini response, and lets the user review or edit extracted values before downloading the final dataset.
@@ -185,7 +186,7 @@ Successful response:
 
 - Node.js 20+
 - npm
-- Cloudflare Wrangler
+- Cloudflare Wrangler access through `npx wrangler`
 - Gemini API key
 
 ### 1. Run the Worker
@@ -223,35 +224,57 @@ The frontend runs on `http://localhost:5173` and proxies `/api` requests to the 
 
 ## Deployment
 
-### Worker
+### Worker API
+
+Deploy the Worker from the `worker` directory:
 
 ```bash
 cd worker
+npm install
+npx wrangler login
 npx wrangler secret put GEMINI_API_KEY
-npm run deploy
+npx wrangler deploy
 ```
 
-Optional Worker variable:
+`GEMINI_MODEL` is configured in `worker/wrangler.toml`:
 
 ```toml
 GEMINI_MODEL = "gemini-3-flash-preview"
 ```
 
-`GEMINI_MODEL` is already configured in `worker/wrangler.toml`. Update it if the project should use a different Gemini model.
+Update that value only if the Worker should use a different Gemini model.
 
-### Frontend
+### Frontend on Cloudflare Pages
+
+The frontend is a Vite static app. Deploy it through the Cloudflare Pages dashboard or with the Pages CLI.
+
+#### Option A: Cloudflare Pages dashboard
+
+Use these Pages build settings:
+
+```text
+Framework preset: Vite
+Root directory: frontend
+Build command: npm run build
+Build output directory: dist
+```
+
+Set this Pages environment variable before building if the Worker is deployed on a separate Workers domain:
+
+```text
+VITE_API_URL=https://your-worker-domain.workers.dev/api
+```
+
+#### Option B: Cloudflare Pages CLI
 
 ```bash
 cd frontend
-npm run build
-npm run deploy
+npm install
+VITE_API_URL=https://your-worker-domain.workers.dev/api npm run build
+npx wrangler pages deploy dist --project-name=mbr-extractor-frontend
 ```
 
-For production deployments where the frontend and Worker are on different origins, set:
-
-```bash
-VITE_API_URL=https://your-worker-domain.example.com/api
-```
+If the frontend and Worker are deployed on the same origin behind a route or proxy, `VITE_API_URL` can be omitted and the frontend will call `/api`.
 
 The Worker CORS configuration currently allows localhost development and the deployed Cloudflare Pages domain. Add any custom production domain to the Worker CORS allowlist before using a custom frontend domain.
 
@@ -295,7 +318,14 @@ cd frontend
 npm run dev
 npm run build
 npm run preview
-npm run deploy
+```
+
+Deploy with Cloudflare Pages dashboard settings or:
+
+```bash
+cd frontend
+VITE_API_URL=https://your-worker-domain.workers.dev/api npm run build
+npx wrangler pages deploy dist --project-name=mbr-extractor-frontend
 ```
 
 ### Worker
@@ -304,7 +334,7 @@ npm run deploy
 cd worker
 npm run dev
 npm run typecheck
-npm run deploy
+npx wrangler deploy
 ```
 
 ## Security and Privacy
@@ -317,4 +347,4 @@ npm run deploy
 
 ## License
 
-No license file is currently included in this repository.
+This project is licensed under the MIT License.
