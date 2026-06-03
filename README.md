@@ -256,3 +256,19 @@ Recommended manual Cloudflare dashboard step: add a WAF/rate-limit rule for `POS
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
+
+## Review workspace and templates
+
+- Results include three views: **Table**, **Side-by-side review**, and **Review queue**.
+- Side-by-side review shows the in-memory rendered PDF page beside editable extracted rows, confidence, warnings/review reasons, and source/nearby text when available.
+- Page image highlighting is intentionally not faked; it requires bounding-box extraction and is not enabled yet.
+- Scoped extraction templates can be saved, renamed, deleted, loaded, exported, and imported as JSON.
+- Templates are stored only in browser `localStorage` under `mbr-scoped-templates:v1`; no server-side template storage is used.
+- Exported templates may contain process parameter names, synonyms, and expected units. Treat exported JSON as sensitive if it reflects real manufacturing processes.
+
+## Screenshot placeholders
+
+No regulated/client screenshots are included. Suggested placeholders for future sanitized screenshots:
+
+- `docs/screenshots/side-by-side-review-placeholder.png`
+- `docs/screenshots/scoped-template-manager-placeholder.png`

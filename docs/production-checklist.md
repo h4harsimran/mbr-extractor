@@ -34,3 +34,12 @@ In the Cloudflare dashboard, add a rate-limit/WAF rule for `POST /api/extract-pa
 - Page images are sent to Gemini for extraction.
 - The app does not intentionally store uploaded PDFs or extracted rows server-side.
 - Confirm security headers are present on Pages and Worker responses.
+
+## Scoped review/template hardening checks
+
+- Confirm `/api/build-scope` rejects oversized JSON bodies even when `Content-Length` is absent or unreliable.
+- Confirm scoped schema validation rejects duplicate `parameter_id` values and instruction-like text in names, descriptions, synonyms, and units.
+- Confirm direct pushes to both `main` and `dev` trigger CI.
+- Confirm rendered page previews remain in memory only and are not saved to localStorage.
+- Confirm scoped templates are saved only to browser localStorage and can be exported/imported as JSON.
+- Confirm imported scoped templates require user review and approval before extraction.
