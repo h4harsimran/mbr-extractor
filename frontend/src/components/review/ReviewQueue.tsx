@@ -20,7 +20,7 @@ export default function ReviewQueue({ mode, pages, scopedPages, onSelect }: Prop
           <strong>Page {page}</strong>
           {group.map((item) => (
             <button key={`${item.pageNumber}-${item.rowIndex}`} className="review-row-card" onClick={() => onSelect(item.pageNumber, item.rowIndex)}>
-              <strong>{item.label}</strong><span>{item.reason}</span>
+              <strong>Page {item.pageNumber}: {item.label}</strong><span>{item.reason}</span>
             </button>
           ))}
         </div>

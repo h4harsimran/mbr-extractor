@@ -77,11 +77,9 @@ export default function ScopeTemplateManager({ currentScope, onLoadScope }: Prop
         templates={templates}
         selectedTemplate={selectedTemplate && !selectedTemplate.template_id.startsWith("builtin_") ? selectedTemplate : null}
         onImport={(imported, summary) => {
-          setTemplates((prev) => {
-            const resolved = resolveTemplateImportCollisions(imported, prev);
-            setMessage(`Import summary: ${resolved.imported} imported, ${summary.skipped} skipped, ${resolved.renamed} renamed.`);
-            return resolved.templates.reduce((next, template) => upsertTemplate(next, template), prev);
-          });
+          const resolved = resolveTemplateImportCollisions(imported, templates);
+          setTemplates((prev) => resolved.templates.reduce((next, template) => upsertTemplate(next, template), prev));
+          setMessage(`Import summary: ${resolved.imported} imported, ${summary.skipped} skipped, ${resolved.renamed} renamed.`);
         }}
       />
     </div>

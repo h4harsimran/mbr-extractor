@@ -210,7 +210,7 @@ export default function App() {
           scopedExtraction: {
             ...p.scopedExtraction,
             scoped_results: p.scopedExtraction.scoped_results.map((r, i) =>
-              i === rowIndex ? { ...r, [field]: value, edited_by_user: true, needs_review: field === "needs_review" ? Boolean(value) : r.needs_review, review_status: field === "needs_review" ? (value ? "open" : r.review_status) : field === "review_status" ? value as ReviewStatus : r.review_status } : r
+              i === rowIndex ? { ...r, [field]: value, edited_by_user: true, needs_review: field === "needs_review" ? Boolean(value) : r.needs_review, review_status: field === "needs_review" ? (value ? "open" : "accepted") : field === "review_status" ? value as ReviewStatus : r.review_status } : r
             ),
           },
         };
