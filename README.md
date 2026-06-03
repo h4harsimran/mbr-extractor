@@ -2,6 +2,8 @@
 
 AI-powered extraction of structured data from scanned Master Batch Record (MBR) PDFs. Upload a PDF, get a CSV.
 
+Live demo: https://mbr-extractor-frontend.pages.dev
+
 ## Architecture
 
 ```
