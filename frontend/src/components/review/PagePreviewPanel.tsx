@@ -18,7 +18,7 @@ export default function PagePreviewPanel({ preview, pageNumber, pageNumbers, zoo
         <button className="btn btn-secondary" disabled={pageNumbers.indexOf(pageNumber) === pageNumbers.length - 1} onClick={() => onPageChange(pageNumbers[Math.min(pageNumbers.length - 1, pageNumbers.indexOf(pageNumber) + 1)])}>Next page</button>
       </div>
       <div className="review-toolbar" aria-label="Zoom controls">
-        {["fit", 0.75, 1, 1.25].map((item) => <button key={String(item)} className="btn btn-secondary" onClick={() => onZoomChange(item as "fit" | 0.75 | 1 | 1.25)}>{item === "fit" ? "Fit width" : `${Number(item) * 100}%`}</button>)}
+        {["fit", 0.75, 1, 1.25].map((item) => <button key={String(item)} className={`btn btn-secondary ${zoom === item ? "active" : ""}`} onClick={() => onZoomChange(item as "fit" | 0.75 | 1 | 1.25)}>{item === "fit" ? "Fit width" : `${Number(item) * 100}%`}</button>)}
       </div>
       <p className="upload-hint">Image highlighting requires bounding-box extraction and is not enabled yet.</p>
       <div className="page-preview-frame">

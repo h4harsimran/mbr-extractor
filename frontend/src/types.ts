@@ -78,6 +78,8 @@ export interface ScopedExtractionPlan {
   parameters: ScopedParameter[];
 }
 
+export type ReviewStatus = "open" | "accepted" | "not_applicable";
+
 export interface ScopedExtractionResult {
   parameter_id: string;
   display_name: string;
@@ -95,6 +97,7 @@ export interface ScopedExtractionResult {
   extraction_confidence: number;
   needs_review: boolean;
   review_reasons: string[];
+  review_status?: ReviewStatus;
   edited_by_user?: boolean;
 }
 

@@ -17,7 +17,7 @@ interface GeminiResponse {
       parts?: Array<{ text?: string }>;
     };
   }>;
-  error?: { message: string; code: number };
+  error?: { message?: string; code?: number; status?: string };
 }
 
 
@@ -59,18 +59,18 @@ async function generateJson(
       });
       if (!response.ok) throw new Error(`Gemini API error ${response.status}`);
       const data = (await response.json()) as GeminiResponse;
-      if (data.error) throw new Error(`Gemini error ${data.error.code}`);
+      if (data.error) throw new Error(`Gemini error ${data.error.code ?? data.error.status ?? "unknown"}`);
       return stripAndAssertJson(data.candidates?.[0]?.content?.parts?.[0]?.text ?? "");
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn(`Gemini attempt ${attempt}/${MAX_RETRIES} failed for ${logContext}: ${lastError.message}`);
+      console.warn(`Gemini attempt ${attempt}/${MAX_RETRIES} failed`, { context: logContext, error_class: lastError.name, message: "Provider request failed" });
       if (attempt < MAX_RETRIES) {
         const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
         await new Promise((r) => setTimeout(r, delay));
       }
     }
   }
-  throw new Error(`Gemini generation failed after ${MAX_RETRIES} attempts: ${lastError?.message}`);
+  throw new Error(`Gemini generation failed after ${MAX_RETRIES} attempts`);
 }
 
 /**

@@ -3,11 +3,10 @@ import type { ScopedExtractionPlan, ScopedParameter } from "../types";
 const SAFE_ID_RE = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 const INSTRUCTION_LIKE_RE = /\b(ignore|disregard|forget|override|previous instructions?|system prompt|developer message|api key|secret|hidden text|send the full document|extract all)\b/i;
 const MAX_PARAMETERS = 50;
+const VALUE_TYPES = new Set(["target_value", "actual_value", "comment", "performed_by_initials", "performed_date", "verified_by_initials", "verified_date"]);
+const REQUIRED_EVIDENCE = new Set(["page_number", "source_label", "nearby_text"]);
 
-export interface ScopeValidationResult {
-  valid: boolean;
-  errors: string[];
-}
+export interface ScopeValidationResult { valid: boolean; errors: string[]; }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -30,6 +29,14 @@ function cleanStringArray(value: unknown, maxItems: number, maxChars: number): s
   return cleaned;
 }
 
+function validateStringArray(parameter: Record<string, unknown>, field: "expected_units" | "synonyms", index: number, maxItems: number, errors: string[]) {
+  const raw = parameter[field];
+  if (!Array.isArray(raw)) { errors.push(`Parameter ${index + 1} ${field} must be an array.`); return; }
+  if (raw.length > maxItems) errors.push(`Parameter ${index + 1} ${field} must include at most ${maxItems} items.`);
+  if (raw.some((entry) => typeof entry !== "string" || entry.trim().length === 0)) errors.push(`Parameter ${index + 1} ${field} must contain non-empty strings.`);
+  if (raw.some((entry) => typeof entry === "string" && INSTRUCTION_LIKE_RE.test(entry))) errors.push(`Parameter ${index + 1} ${field} contains instruction-like text.`);
+}
+
 export function validateScopedExtractionPlan(value: unknown): ScopeValidationResult {
   const errors: string[] = [];
   const scope = asRecord(value);
@@ -44,24 +51,29 @@ export function validateScopedExtractionPlan(value: unknown): ScopeValidationRes
     const ids = new Set<string>();
     scope.parameters.forEach((item, index) => {
       const parameter = asRecord(item);
-      if (!parameter) {
-        errors.push(`Parameter ${index + 1} must be an object.`);
-        return;
-      }
+      if (!parameter) { errors.push(`Parameter ${index + 1} must be an object.`); return; }
       const id = typeof parameter.parameter_id === "string" ? parameter.parameter_id.trim() : "";
       if (!SAFE_ID_RE.test(id)) errors.push(`Parameter ${index + 1} has an unsafe parameter_id.`);
       if (ids.has(id)) errors.push(`Duplicate parameter_id: ${id}.`);
       ids.add(id);
       const displayName = typeof parameter.display_name === "string" ? parameter.display_name.trim() : "";
+      const description = typeof parameter.description === "string" ? parameter.description.trim() : "";
       if (!displayName) errors.push(`Parameter ${index + 1} needs a display name.`);
+      if (displayName.length > 120) errors.push(`Parameter ${index + 1} display name is too long.`);
+      if (description.length > 500) errors.push(`Parameter ${index + 1} description is too long.`);
       if (INSTRUCTION_LIKE_RE.test(displayName)) errors.push(`Parameter ${index + 1} display name contains instruction-like text.`);
-      for (const field of ["description", "synonyms", "expected_units"] as const) {
-        const raw = parameter[field];
-        const values = Array.isArray(raw) ? raw : [raw];
-        if (values.some((entry) => typeof entry === "string" && INSTRUCTION_LIKE_RE.test(entry))) {
-          errors.push(`Parameter ${index + 1} ${field} contains instruction-like text.`);
-        }
-      }
+      if (INSTRUCTION_LIKE_RE.test(description)) errors.push(`Parameter ${index + 1} description contains instruction-like text.`);
+      validateStringArray(parameter, "expected_units", index, 20, errors);
+      validateStringArray(parameter, "synonyms", index, 20, errors);
+      const valueTypes = parameter.value_types;
+      if (!Array.isArray(valueTypes) || valueTypes.length === 0) errors.push(`Parameter ${index + 1} value_types must include at least one value.`);
+      else if (valueTypes.some((item) => typeof item !== "string" || !VALUE_TYPES.has(item))) errors.push(`Parameter ${index + 1} value_types contains an unknown value.`);
+      const evidence = parameter.required_evidence;
+      if (!Array.isArray(evidence) || evidence.length === 0) errors.push(`Parameter ${index + 1} required_evidence must include at least one value.`);
+      else if (evidence.some((item) => typeof item !== "string" || !REQUIRED_EVIDENCE.has(item))) errors.push(`Parameter ${index + 1} required_evidence contains an unknown value.`);
+      const rules = parameter.needs_review_rules;
+      if (!Array.isArray(rules)) errors.push(`Parameter ${index + 1} needs_review_rules must be an array.`);
+      else if (rules.length > 20 || rules.some((rule) => typeof rule !== "string" || rule.trim().length === 0 || rule.length > 80)) errors.push(`Parameter ${index + 1} needs_review_rules are invalid.`);
     });
   }
   return { valid: errors.length === 0, errors };

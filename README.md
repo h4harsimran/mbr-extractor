@@ -272,3 +272,11 @@ No regulated/client screenshots are included. Suggested placeholders for future 
 
 - `docs/screenshots/side-by-side-review-placeholder.png`
 - `docs/screenshots/scoped-template-manager-placeholder.png`
+
+## Production-readiness data handling notes
+
+- Side-by-side review is a human-verification aid only; it is not an electronic signature workflow, audit trail, release system, or validated GMP review process.
+- Scoped templates are local browser data only. Saved templates live in browser localStorage, and imported templates are validated as untrusted JSON before they can be loaded and approved.
+- Exported templates may contain sensitive process parameter names, synonyms, expected units, and internal terminology; handle exported JSON as sensitive process data.
+- Rendered page previews are memory-only React state. They are intentionally excluded from session localStorage because they contain page image data URLs.
+- No uploaded PDFs are intentionally stored server-side. Page images are sent to the Worker/Gemini only for extraction.

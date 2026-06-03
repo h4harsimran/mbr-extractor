@@ -14,7 +14,8 @@ export type ScopedReviewReason =
   | "MISSING_ACTUAL_VALUE"
   | "UNIT_MISMATCH"
   | "LOW_CONFIDENCE"
-  | "AMBIGUOUS_VALUE";
+  | "AMBIGUOUS_VALUE"
+  | "PAGE_NUMBER_MISMATCH";
 
 export interface ExtractionWarning {
   code: WarningCode;
@@ -47,6 +48,8 @@ export interface PageExtraction {
   warnings?: ExtractionWarning[];
 }
 
+export type ReviewStatus = "open" | "accepted" | "not_applicable";
+
 export interface ScopedExtractionResult {
   parameter_id: string;
   display_name: string;
@@ -64,6 +67,7 @@ export interface ScopedExtractionResult {
   extraction_confidence: number;
   needs_review: boolean;
   review_reasons: string[];
+  review_status?: ReviewStatus;
   edited_by_user?: boolean;
 }
 

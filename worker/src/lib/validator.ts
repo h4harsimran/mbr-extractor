@@ -111,7 +111,6 @@ export function validatePageResponse(rawText: string, pageNumber: number): Valid
   }
 
   const pageExtraction: PageExtraction = parseResult.data;
-  pageExtraction.warnings = [...pageWarnings];
 
   if (pageExtraction.page_number !== pageNumber) {
     const item = warning(

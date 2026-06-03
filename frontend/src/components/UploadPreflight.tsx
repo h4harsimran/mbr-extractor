@@ -59,8 +59,10 @@ export default function UploadPreflight({
       <ScopeModeSelector mode={extractionMode} onChange={onModeChange} />
       {extractionMode === "scoped" && (
         <>
+          <h3 className="scope-title">Build scope from pasted parameters</h3>
           <ScopeInput rawParameters={rawParameters} documentContext={documentContext} loading={scopeLoading} onRawParametersChange={onRawParametersChange} onDocumentContextChange={onDocumentContextChange} onBuildScope={onBuildScope} />
           {scopeWarnings.map((warning) => <div className="error-banner" key={warning} style={{ marginTop: 12 }}>{warning}</div>)}
+          <h3 className="scope-title">Or load a saved/built-in template</h3>
           <ScopeTemplateManager currentScope={scopedPlan} onLoadScope={onLoadTemplateScope} />
           {scopedPlan && (
             <>

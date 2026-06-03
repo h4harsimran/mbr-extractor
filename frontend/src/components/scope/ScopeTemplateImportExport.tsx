@@ -8,15 +8,24 @@ interface Props {
   onImport: (templates: ScopedExtractionTemplate[], summary: TemplateImportSummary) => void;
 }
 
+const MAX_IMPORT_BYTES = 1024 * 1024;
+
 export default function ScopeTemplateImportExport({ templates, selectedTemplate, onImport }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [summary, setSummary] = useState<TemplateImportSummary | null>(null);
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
-    const result = parseTemplateImport(await file.text());
+    if (file.size > MAX_IMPORT_BYTES) {
+      setSummary({ templates: [], imported: 0, skipped: 1, renamed: 0, errors: ["Template import file is too large. Maximum size is 1 MB."] });
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+    let text: string;
+    try { text = await file.text(); } catch { setSummary({ templates: [], imported: 0, skipped: 1, renamed: 0, errors: ["Template import file could not be read."] }); return; }
+    const result = parseTemplateImport(text);
     setSummary(result);
-    if (result.templates.length > 0) onImport(result.templates, result);
+    if (result.templates.length > 0 && result.imported > 0) onImport(result.templates, result);
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -29,7 +38,7 @@ export default function ScopeTemplateImportExport({ templates, selectedTemplate,
       </div>
       {summary && (
         <div className="error-banner" style={{ marginTop: 12, borderColor: summary.errors.length ? "var(--warning)" : "var(--success)", color: summary.errors.length ? "var(--warning)" : "var(--success)" }}>
-          Import summary: {summary.imported} imported, {summary.skipped} skipped.
+          Import summary: {summary.imported} imported, {summary.skipped} skipped, {summary.renamed} renamed.
           {summary.errors.length > 0 && <ul>{summary.errors.map((error) => <li key={error}>{error}</li>)}</ul>}
         </div>
       )}

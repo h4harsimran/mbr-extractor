@@ -6,7 +6,7 @@ import UploadPreflight from "./components/UploadPreflight";
 import { bytesToMb, extractionConfig } from "./config/extraction";
 import { buildScopeFromApi, extractPageFromApi } from "./lib/extraction-client";
 import { loadPdf, renderPage } from "./lib/pdf-renderer";
-import type { AppState, ExtractedRow, ExtractionMode, PageExtraction, PagePreview, PageProgress, ScopedExtractionPlan, ScopedExtractionResult, ScopedPageExtraction, UploadPreflight as UploadPreflightData } from "./types";
+import type { AppState, ExtractedRow, ExtractionMode, PageExtraction, PagePreview, PageProgress, ReviewStatus, ScopedExtractionPlan, ScopedExtractionResult, ScopedPageExtraction, UploadPreflight as UploadPreflightData } from "./types";
 import { validateScopedExtractionPlan } from "./lib/scope-validation";
 
 const SESSION_KEY = "mbr-session";
@@ -29,6 +29,7 @@ export default function App() {
   const [startTime, setStartTime] = useState<number>(() => saved?.startTime || 0);
   const [preflight, setPreflight] = useState<UploadPreflightData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [extractionMode, setExtractionMode] = useState<ExtractionMode>(() => saved?.extractionMode || "full");
   const [rawParameters, setRawParameters] = useState<string>(() => saved?.rawParameters || "");
   const [documentContext, setDocumentContext] = useState<string>(() => saved?.documentContext || "");
@@ -50,6 +51,7 @@ export default function App() {
 
   const prepareFile = useCallback(async (file: File) => {
     setError(null);
+    setInfoMessage(null);
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setError("Please upload a PDF file.");
       return;
@@ -199,7 +201,7 @@ export default function App() {
     );
   }, []);
 
-  const handleUpdateScopedRow = useCallback((pageNumber: number, rowIndex: number, field: keyof ScopedExtractionResult, value: string | boolean | number | string[] | null) => {
+  const handleUpdateScopedRow = useCallback((pageNumber: number, rowIndex: number, field: keyof ScopedExtractionResult, value: string | boolean | number | string[] | ReviewStatus | null) => {
     setPages((prev) =>
       prev.map((p) => {
         if (p.pageNumber !== pageNumber || !p.scopedExtraction) return p;
@@ -208,7 +210,7 @@ export default function App() {
           scopedExtraction: {
             ...p.scopedExtraction,
             scoped_results: p.scopedExtraction.scoped_results.map((r, i) =>
-              i === rowIndex ? { ...r, [field]: value, edited_by_user: true, needs_review: field === "needs_review" ? Boolean(value) : r.needs_review } : r
+              i === rowIndex ? { ...r, [field]: value, edited_by_user: true, needs_review: field === "needs_review" ? Boolean(value) : r.needs_review, review_status: field === "needs_review" ? (value ? "open" : r.review_status) : field === "review_status" ? value as ReviewStatus : r.review_status } : r
             ),
           },
         };
@@ -249,16 +251,20 @@ export default function App() {
       return;
     }
     setError(null);
+    setInfoMessage(null);
     setScopeApproved(true);
   }, [scopedPlan]);
 
   const handleLoadTemplateScope = useCallback((scope: ScopedExtractionPlan) => {
     setScopedPlan(scope);
     setScopeApproved(false);
-    setError("Template loaded. Review and approve it before starting extraction.");
+    setError(null);
+    setInfoMessage("Template loaded. Review and approve it before starting extraction.");
   }, []);
 
   useEffect(() => {
+    // Page previews contain rendered PDF images/data URLs and are intentionally excluded from session persistence.
+    // They stay in React memory only so reload/restore never writes page images, base64, or data URLs to localStorage.
     if (appState !== "upload") {
       localStorage.setItem(SESSION_KEY, JSON.stringify({ appState, pages, filename, startTime, extractionMode, rawParameters, documentContext, scopedPlan, scopeApproved }));
     } else {
@@ -280,6 +286,7 @@ export default function App() {
 
       <main className="app-content">
         {appState === "upload" && <FileUpload onFileSelected={prepareFile} error={error} />}
+        {infoMessage && <div className="info-banner">{infoMessage}</div>}
         {appState === "preflight" && preflight && (
           <UploadPreflight
             preflight={preflight}
