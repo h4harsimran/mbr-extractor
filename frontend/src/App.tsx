@@ -175,6 +175,7 @@ export default function App() {
     setFilename("");
     setPreflight(null);
     setError(null);
+    setInfoMessage(null);
     setExtractionMode("full");
     setRawParameters("");
     setDocumentContext("");
@@ -221,6 +222,7 @@ export default function App() {
   const handleBuildScope = useCallback(async () => {
     setScopeLoading(true);
     setError(null);
+    setInfoMessage(null);
     setScopeWarnings([]);
     try {
       const response = await buildScopeFromApi(rawParameters, documentContext);

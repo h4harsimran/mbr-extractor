@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "npm orchestration for the MBR Extractor frontend and Worker",
   "scripts": {
-    "install:all": "npm install --prefix frontend && npm install --prefix worker",
+    "install:all": "npm install --include=dev --prefix frontend && npm install --include=dev --prefix worker",
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:worker": "npm run dev --prefix worker",
     "build": "npm run build --prefix frontend",
