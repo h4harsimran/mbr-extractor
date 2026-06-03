@@ -4,12 +4,14 @@ interface ExtractionProgressProps {
   pages: PageProgress[];
   filename: string;
   startTime: number;
+  onCancel?: () => void;
 }
 
 export default function ExtractionProgress({
   pages,
   filename,
   startTime,
+  onCancel,
 }: ExtractionProgressProps) {
   const completed = pages.filter((p) => p.status === "completed").length;
   const failed = pages.filter((p) => p.status === "failed").length;
@@ -38,6 +40,7 @@ export default function ExtractionProgress({
       <div className="progress-header">
         <h2 className="progress-title">Extracting Data…</h2>
         <div className="progress-file">{filename}</div>
+        {onCancel && <button className="btn btn-secondary" onClick={onCancel}>Cancel</button>}
       </div>
 
       <div className="progress-stats">

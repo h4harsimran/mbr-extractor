@@ -769,3 +769,19 @@ body {
     align-items: flex-start;
   }
 }
+
+.editable-cell {
+  width: 100%;
+  min-width: 90px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: inherit;
+  padding: 4px 6px;
+}
+
+.editable-cell:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  background: rgba(255, 255, 255, 0.04);
+}

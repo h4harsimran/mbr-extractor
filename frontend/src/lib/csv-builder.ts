@@ -1,8 +1,6 @@
-// ── CSV builder — ported from Python exporter.py ───────────────────
-
 import type { PageExtraction, ExtractedRow } from "../types";
 
-const CSV_COLUMNS = [
+export const CSV_COLUMNS = [
   "page_number",
   "lot_number",
   "row_id",
@@ -17,30 +15,24 @@ const CSV_COLUMNS = [
   "verified_date",
   "extraction_confidence",
   "needs_review",
+  "review_reason",
+  "edited_by_user",
 ] as const;
 
-/**
- * Escape a CSV field value (handle commas, quotes, newlines).
- */
-function escapeCSV(value: unknown): string {
+const FORMULA_PREFIXES = ["=", "+", "-", "@", "\t", "\r"];
+
+export function escapeCSV(value: unknown): string {
   if (value === null || value === undefined) return "";
-  const str = String(value);
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+  let str = String(value);
+  if (FORMULA_PREFIXES.some((prefix) => str.startsWith(prefix))) str = `'${str}`;
+  if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
 }
 
-/**
- * Build a CSV string from page extractions.
- */
 export function buildCSV(pages: PageExtraction[]): string {
-  const lines: string[] = [];
-
-  // Header
-  lines.push(CSV_COLUMNS.join(","));
-
-  // Data rows
+  const lines = [CSV_COLUMNS.join(",")];
   for (const page of pages) {
     for (const row of page.rows) {
       const values = CSV_COLUMNS.map((col) => {
@@ -50,13 +42,9 @@ export function buildCSV(pages: PageExtraction[]): string {
       lines.push(values.join(","));
     }
   }
-
   return lines.join("\n");
 }
 
-/**
- * Trigger a CSV file download in the browser.
- */
 export function downloadCSV(csvContent: string, filename: string): void {
   const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);

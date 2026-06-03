@@ -1,19 +1,18 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import FileUpload from "./components/FileUpload";
 import ExtractionProgress from "./components/ExtractionProgress";
 import ResultsView from "./components/ResultsView";
-import { loadPdf, renderPage } from "./lib/pdf-renderer";
+import UploadPreflight from "./components/UploadPreflight";
+import { bytesToMb, extractionConfig } from "./config/extraction";
 import { extractPageFromApi } from "./lib/extraction-client";
-import type {
-  AppState,
-  PageProgress,
-  PageExtraction,
-  ExtractedRow,
-} from "./types";
+import { loadPdf, renderPage } from "./lib/pdf-renderer";
+import type { AppState, ExtractedRow, PageExtraction, PageProgress, UploadPreflight as UploadPreflightData } from "./types";
+
+const SESSION_KEY = "mbr-session";
 
 const loadInitialState = () => {
   try {
-    const saved = localStorage.getItem("mbr-session");
+    const saved = localStorage.getItem(SESSION_KEY);
     if (saved) return JSON.parse(saved);
   } catch (e) {
     console.error("Failed to parse saved session", e);
@@ -22,83 +21,94 @@ const loadInitialState = () => {
 };
 
 export default function App() {
-  const [appState, setAppState] = useState<AppState>(
-    () => loadInitialState()?.appState || "upload"
-  );
-  const [pages, setPages] = useState<PageProgress[]>(
-    () => loadInitialState()?.pages || []
-  );
-  const [filename, setFilename] = useState<string>(
-    () => loadInitialState()?.filename || ""
-  );
-  const [startTime, setStartTime] = useState<number>(
-    () => loadInitialState()?.startTime || 0
-  );
-  const abortRef = useRef(false);
+  const saved = loadInitialState();
+  const [appState, setAppState] = useState<AppState>(() => saved?.appState || "upload");
+  const [pages, setPages] = useState<PageProgress[]>(() => saved?.pages || []);
+  const [filename, setFilename] = useState<string>(() => saved?.filename || "");
+  const [startTime, setStartTime] = useState<number>(() => saved?.startTime || 0);
+  const [preflight, setPreflight] = useState<UploadPreflightData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
+  const initializePages = (totalPages: number): PageProgress[] =>
+    Array.from({ length: totalPages }, (_, i) => ({
+      pageNumber: i + 1,
+      status: "pending",
+      extraction: null,
+      error: null,
+    }));
 
+  const prepareFile = useCallback(async (file: File) => {
+    setError(null);
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setError("Please upload a PDF file.");
+      return;
+    }
+    if (bytesToMb(file.size) > extractionConfig.maxFileSizeMb) {
+      setError(`File is too large. Maximum size is ${extractionConfig.maxFileSizeMb} MB.`);
+      return;
+    }
 
-  const processFile = useCallback(async (file: File) => {
-    abortRef.current = false;
-    setFilename(file.name);
+    let pdf;
+    try {
+      pdf = await loadPdf(file);
+      if (pdf.numPages > extractionConfig.maxPages) {
+        setError(`PDF has ${pdf.numPages} pages. Maximum supported page count is ${extractionConfig.maxPages}.`);
+        return;
+      }
+      setPreflight({ file, filename: file.name, fileSizeBytes: file.size, pageCount: pdf.numPages });
+      setFilename(file.name);
+      setAppState("preflight");
+    } catch (err) {
+      setError(`Failed to load PDF: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      pdf?.destroy();
+    }
+  }, []);
+
+  const processPages = useCallback(async (targetPages?: number[]) => {
+    if (!preflight?.file) {
+      setError("Please choose the PDF again before retrying pages.");
+      setAppState("upload");
+      return;
+    }
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setError(null);
+    setFilename(preflight.filename);
     setAppState("processing");
     setStartTime(Date.now());
 
-    try {
-      // Load PDF and get page count
-      const pdf = await loadPdf(file);
-      const totalPages = pdf.numPages;
-
-      // Initialize page progress
-      const initialPages: PageProgress[] = Array.from(
-        { length: totalPages },
-        (_, i) => ({
-          pageNumber: i + 1,
-          status: "pending",
-          extraction: null,
-          error: null,
-        })
+    const pageNumbers = targetPages ?? Array.from({ length: preflight.pageCount }, (_, i) => i + 1);
+    if (!targetPages) setPages(initializePages(preflight.pageCount));
+    else {
+      setPages((prev) =>
+        prev.map((page) =>
+          pageNumbers.includes(page.pageNumber)
+            ? { ...page, status: "pending", error: null, extraction: null }
+            : page
+        )
       );
-      setPages(initialPages);
+    }
 
-      // Process pages in parallel with a concurrency limit
-      const completedExtractions: PageExtraction[] = [];
-      const CONCURRENCY_LIMIT = 10;
+    let pdf;
+    try {
+      pdf = await loadPdf(preflight.file);
       let currentIndex = 0;
-
       const worker = async () => {
-        while (currentIndex < totalPages) {
-          if (abortRef.current) break;
-          const i = currentIndex++;
-          const pageNum = i + 1;
-
-          // Update status to processing
-          setPages((prev) =>
-            prev.map((p) =>
-              p.pageNumber === pageNum ? { ...p, status: "processing" } : p
-            )
-          );
-
+        while (currentIndex < pageNumbers.length && !controller.signal.aborted) {
+          const pageNum = pageNumbers[currentIndex++];
+          setPages((prev) => prev.map((p) => (p.pageNumber === pageNum ? { ...p, status: "processing" } : p)));
           try {
-            // Render page to image in browser
-            const rendered = await renderPage(pdf, pageNum);
-
-            // Send to worker for Gemini extraction
-            const result = await extractPageFromApi(
-              rendered.base64Image,
-              pageNum
-            );
-
+            const rendered = await renderPage(pdf!, pageNum);
+            if (controller.signal.aborted) throw new DOMException("Extraction cancelled", "AbortError");
+            const result = await extractPageFromApi(rendered.base64Image, pageNum, rendered.mimeType, controller.signal);
             if (result.success && result.page_extraction) {
-              completedExtractions.push(result.page_extraction);
               setPages((prev) =>
                 prev.map((p) =>
                   p.pageNumber === pageNum
-                    ? {
-                        ...p,
-                        status: "completed",
-                        extraction: result.page_extraction,
-                      }
+                    ? { ...p, status: "completed", extraction: result.page_extraction, error: null }
                     : p
                 )
               );
@@ -106,22 +116,17 @@ export default function App() {
               setPages((prev) =>
                 prev.map((p) =>
                   p.pageNumber === pageNum
-                    ? {
-                        ...p,
-                        status: "failed",
-                        error: result.errors.join("; ") || "Unknown error",
-                      }
+                    ? { ...p, status: result.errors[0]?.code === "CANCELLED" ? "cancelled" : "failed", error: result.errors.map((item) => item.message).join("; ") || "Extraction failed" }
                     : p
                 )
               );
             }
           } catch (err) {
-            const message =
-              err instanceof Error ? err.message : "Unknown error";
+            const cancelled = err instanceof DOMException && err.name === "AbortError";
             setPages((prev) =>
               prev.map((p) =>
                 p.pageNumber === pageNum
-                  ? { ...p, status: "failed", error: message }
+                  ? { ...p, status: cancelled ? "cancelled" : "failed", error: cancelled ? "Extraction cancelled" : err instanceof Error ? err.message : "Unknown error" }
                   : p
               )
             );
@@ -129,105 +134,83 @@ export default function App() {
         }
       };
 
-      const workers = Array.from(
-        { length: Math.min(CONCURRENCY_LIMIT, totalPages) },
-        worker
-      );
-      await Promise.all(workers);
-
-      pdf.destroy();
+      await Promise.all(Array.from({ length: Math.min(extractionConfig.concurrency, pageNumbers.length) }, worker));
     } catch (err) {
-      console.error("PDF processing failed:", err);
-      alert(
-        `Failed to process PDF: ${err instanceof Error ? err.message : String(err)}`
-      );
-      setAppState("upload");
-      return;
+      setError(`Failed to process PDF: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      pdf?.destroy();
+      abortControllerRef.current = null;
+      setAppState("results");
     }
+  }, [preflight]);
 
-    // Move to results
-    setAppState("results");
+  const handleCancelExtraction = useCallback(() => {
+    abortControllerRef.current?.abort();
   }, []);
 
   const handleReset = useCallback(() => {
-    abortRef.current = true;
+    abortControllerRef.current?.abort();
     setAppState("upload");
     setPages([]);
     setFilename("");
+    setPreflight(null);
+    setError(null);
   }, []);
 
-  const handleUpdateRow = useCallback(
-    (
-      pageNumber: number,
-      rowIndex: number,
-      field: keyof ExtractedRow,
-      value: string | boolean | number
-    ) => {
-      setPages((prev) =>
-        prev.map((p) => {
-          if (p.pageNumber !== pageNumber || !p.extraction) return p;
-          return {
-            ...p,
-            extraction: {
-              ...p.extraction,
-              rows: p.extraction.rows.map((r, i) =>
-                i === rowIndex ? { ...r, [field]: value } : r
-              ),
-            },
-          };
-        })
-      );
-    },
-    []
-  );
+  const handleUpdateRow = useCallback((pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string | boolean | number) => {
+    setPages((prev) =>
+      prev.map((p) => {
+        if (p.pageNumber !== pageNumber || !p.extraction) return p;
+        return {
+          ...p,
+          extraction: {
+            ...p.extraction,
+            rows: p.extraction.rows.map((r, i) =>
+              i === rowIndex ? { ...r, [field]: value, edited_by_user: true, needs_review: field === "needs_review" ? Boolean(value) : r.needs_review } : r
+            ),
+          },
+        };
+      })
+    );
+  }, []);
 
   useEffect(() => {
     if (appState !== "upload") {
-      localStorage.setItem(
-        "mbr-session",
-        JSON.stringify({ appState, pages, filename, startTime })
-      );
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ appState, pages, filename, startTime }));
     } else {
-      localStorage.removeItem("mbr-session");
+      localStorage.removeItem(SESSION_KEY);
     }
   }, [appState, pages, filename, startTime]);
 
-  const completedExtractions: PageExtraction[] = pages
-    .filter((p) => p.status === "completed" && p.extraction)
-    .map((p) => p.extraction!);
-
-  const failedCount = pages.filter((p) => p.status === "failed").length;
+  const completedExtractions: PageExtraction[] = pages.filter((p) => p.status === "completed" && p.extraction).map((p) => p.extraction!);
+  const failedPages = pages.filter((p) => p.status === "failed");
 
   return (
     <div className="app">
       <header className="app-header">
         <div className="app-logo">M</div>
         <h1 className="app-title">MBR Extractor</h1>
-        <span className="app-subtitle">
-          AI-Powered Batch Record Data Extraction
-        </span>
+        <span className="app-subtitle">AI-assisted Batch Record Data Extraction</span>
       </header>
 
       <main className="app-content">
-        {appState === "upload" && (
-          <FileUpload onFileSelected={processFile} />
+        {appState === "upload" && <FileUpload onFileSelected={prepareFile} error={error} />}
+        {appState === "preflight" && preflight && (
+          <UploadPreflight preflight={preflight} onStart={() => processPages()} onCancel={handleReset} />
         )}
-
         {appState === "processing" && (
-          <ExtractionProgress
-            pages={pages}
-            filename={filename}
-            startTime={startTime}
-          />
+          <ExtractionProgress pages={pages} filename={filename} startTime={startTime} onCancel={handleCancelExtraction} />
         )}
-
         {appState === "results" && (
           <ResultsView
             pages={completedExtractions}
+            allPages={pages}
             filename={filename}
-            failedCount={failedCount}
+            failedCount={failedPages.length}
             onReset={handleReset}
             onUpdateRow={handleUpdateRow}
+            onRetryPage={(pageNumber) => processPages([pageNumber])}
+            onRetryFailed={() => processPages(failedPages.map((page) => page.pageNumber))}
           />
         )}
       </main>

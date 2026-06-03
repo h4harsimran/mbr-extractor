@@ -1,17 +1,32 @@
-// ── API client for page extraction ─────────────────────────────────
-
 import type { ExtractPageResponse } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 const MAX_RETRIES = 2;
-const RETRY_DELAY_MS = 3000;
+const RETRY_DELAY_MS = 1500;
 
-/**
- * Send a single page image to the worker for Gemini extraction.
- */
+function normalizeErrorResponse(status: number, payload: unknown): ExtractPageResponse {
+  if (payload && typeof payload === "object" && "errors" in payload) {
+    const candidate = payload as ExtractPageResponse;
+    return {
+      success: false,
+      page_extraction: null,
+      errors: Array.isArray(candidate.errors) && candidate.errors.length > 0
+        ? candidate.errors
+        : [{ code: "REQUEST_FAILED", message: `Request failed (${status})` }],
+    };
+  }
+  return {
+    success: false,
+    page_extraction: null,
+    errors: [{ code: "REQUEST_FAILED", message: `Request failed (${status})` }],
+  };
+}
+
 export async function extractPageFromApi(
   imageBase64: string,
-  pageNumber: number
+  pageNumber: number,
+  mimeType = "image/jpeg",
+  signal?: AbortSignal
 ): Promise<ExtractPageResponse> {
   let lastError: Error | null = null;
 
@@ -20,35 +35,31 @@ export async function extractPageFromApi(
       const response = await fetch(`${API_BASE}/extract-page`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image_base64: imageBase64,
-          page_number: pageNumber,
-        }),
+        body: JSON.stringify({ image_base64: imageBase64, page_number: pageNumber, mime_type: mimeType }),
+        signal,
       });
 
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text.slice(0, 300)}`);
+      let payload: unknown = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
       }
 
-      return (await response.json()) as ExtractPageResponse;
+      if (!response.ok) return normalizeErrorResponse(response.status, payload);
+      return payload as ExtractPageResponse;
     } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      console.warn(
-        `API attempt ${attempt}/${MAX_RETRIES} for page ${pageNumber}: ${lastError.message}`
-      );
-
-      if (attempt < MAX_RETRIES) {
-        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return { success: false, page_extraction: null, errors: [{ code: "CANCELLED", message: "Extraction cancelled" }] };
       }
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < MAX_RETRIES) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
     }
   }
 
   return {
     success: false,
     page_extraction: null,
-    errors: [
-      `Failed after ${MAX_RETRIES} attempts: ${lastError?.message ?? "Unknown error"}`,
-    ],
+    errors: [{ code: "NETWORK_ERROR", message: lastError?.message ?? "Network error" }],
   };
 }
