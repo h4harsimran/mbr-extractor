@@ -5,6 +5,10 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 GEMINI_MODEL = "gemini-3-flash-preview"
+ALLOWED_ORIGINS = "http://localhost:5173,https://mbr-extractor-frontend.pages.dev"
+MAX_REQUEST_BYTES = "6291456"
+MAX_IMAGE_BASE64_CHARS = "5500000"
+DEBUG_RAW_MODEL_OUTPUT = "false"
 
 # Set GEMINI_API_KEY as a secret:
 # npx wrangler secret put GEMINI_API_KEY

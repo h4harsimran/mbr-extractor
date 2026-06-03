@@ -1,90 +1,62 @@
 // ── Extract page route ─────────────────────────────────────────────
 
 import { Hono } from "hono";
+import { getConfig } from "../config";
+import { errorResponse } from "../lib/api-errors";
 import { extractPage } from "../lib/gemini";
+import { parseAndValidateExtractRequest } from "../lib/request-validation";
 import { validatePageResponse } from "../lib/validator";
-import type { Env, ExtractPageRequest, ExtractPageResponse } from "../types";
+import type { Env, ExtractPageResponse } from "../types";
 
 const extractRouter = new Hono<{ Bindings: Env }>();
 
-/**
- * POST /api/extract-page
- *
- * Accepts a single page image (base64) and page number.
- * Calls Gemini, validates the response, returns structured data.
- */
 extractRouter.post("/extract-page", async (c) => {
-  let body: ExtractPageRequest;
+  const config = getConfig(c.env);
+  const requestResult = await parseAndValidateExtractRequest(c.req.raw, config);
 
-  try {
-    body = await c.req.json<ExtractPageRequest>();
-  } catch {
-    return c.json(
-      { success: false, errors: ["Invalid JSON body"], page_extraction: null },
-      400
-    );
-  }
-
-  const { image_base64, page_number, mime_type } = body;
-
-  if (!image_base64 || typeof page_number !== "number") {
+  if (!requestResult.ok) {
     return c.json(
       {
         success: false,
-        errors: ["Missing required fields: image_base64, page_number"],
         page_extraction: null,
-      },
-      400
+        errors: [requestResult.error],
+      } satisfies ExtractPageResponse,
+      requestResult.status
     );
   }
 
-  const apiKey = c.env.GEMINI_API_KEY;
-  const model = c.env.GEMINI_MODEL || "gemini-3-flash-preview";
-
-  if (!apiKey) {
-    return c.json(
-      {
-        success: false,
-        errors: ["GEMINI_API_KEY not configured on server"],
-        page_extraction: null,
-      },
-      500
-    );
+  if (!config.geminiApiKey) {
+    return c.json(errorResponse("SERVER_MISCONFIGURED"), 500);
   }
+
+  const { image_base64, page_number, mime_type } = requestResult.value;
 
   try {
-    // Call Gemini
     const rawText = await extractPage(
       image_base64,
       page_number,
-      apiKey,
-      model,
-      mime_type || "image/png"
+      config.geminiApiKey,
+      config.geminiModel,
+      mime_type
     );
 
-    // Validate
     const result = validatePageResponse(rawText, page_number);
+    if (!result.valid || !result.page_extraction) {
+      return c.json(errorResponse("INVALID_MODEL_JSON"), 502);
+    }
 
     const response: ExtractPageResponse = {
-      success: result.valid,
+      success: true,
       page_extraction: result.page_extraction,
-      errors: result.errors,
-      raw_text: rawText,
+      errors: [],
+      ...(config.debugRawModelOutput ? { raw_text: rawText } : {}),
     };
 
-    return c.json(response, result.valid ? 200 : 422);
+    return c.json(response, 200);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`Extraction failed for page ${page_number}: ${message}`);
-
-    return c.json(
-      {
-        success: false,
-        errors: [message],
-        page_extraction: null,
-      } satisfies ExtractPageResponse,
-      500
-    );
+    console.error(`Extraction provider failed for page ${page_number}: ${message}`);
+    return c.json(errorResponse("PROVIDER_FAILED"), 502);
   }
 });
 

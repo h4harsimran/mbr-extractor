@@ -1,5 +1,21 @@
 // ── Shared types for MBR extraction ────────────────────────────────
 
+export type WarningCode =
+  | "MISSING_ACTUAL_VALUE"
+  | "MISSING_PERFORMED_BY"
+  | "MISSING_VERIFIED_BY"
+  | "LOW_CONFIDENCE"
+  | "PAGE_NUMBER_MISMATCH"
+  | "MODEL_SCHEMA_REPAIR"
+  | "EXCESS_ROWS";
+
+export interface ExtractionWarning {
+  code: WarningCode;
+  message: string;
+  row_id?: string | null;
+  page_number?: number;
+}
+
 export interface ExtractedRow {
   page_number: number;
   row_id: string | null;
@@ -14,12 +30,14 @@ export interface ExtractedRow {
   verified_date: string | null;
   extraction_confidence: number;
   needs_review: boolean;
+  warnings?: ExtractionWarning[];
 }
 
 export interface PageExtraction {
   page_number: number;
   lot_number: string | null;
   rows: ExtractedRow[];
+  warnings?: ExtractionWarning[];
 }
 
 export interface ValidationResult {
@@ -35,14 +53,30 @@ export interface ExtractPageRequest {
   mime_type?: string;
 }
 
+export type ApiErrorCode =
+  | "INVALID_REQUEST"
+  | "PAYLOAD_TOO_LARGE"
+  | "PROVIDER_FAILED"
+  | "INVALID_MODEL_JSON"
+  | "SERVER_MISCONFIGURED";
+
+export interface ApiError {
+  code: ApiErrorCode;
+  message: string;
+}
+
 export interface ExtractPageResponse {
   success: boolean;
   page_extraction: PageExtraction | null;
-  errors: string[];
+  errors: ApiError[];
   raw_text?: string;
 }
 
 export interface Env {
-  GEMINI_API_KEY: string;
-  GEMINI_MODEL: string;
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
+  ALLOWED_ORIGINS?: string;
+  MAX_REQUEST_BYTES?: string;
+  MAX_IMAGE_BASE64_CHARS?: string;
+  DEBUG_RAW_MODEL_OUTPUT?: string;
 }

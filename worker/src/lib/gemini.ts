@@ -5,7 +5,7 @@ import { SYSTEM_PROMPT, buildUserPrompt } from "./prompts";
 const GEMINI_API_BASE =
   "https://generativelanguage.googleapis.com/v1beta/models";
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 2000;
 
 interface GeminiResponse {
@@ -66,17 +66,14 @@ export async function extractPage(
       });
 
       if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(
-          `Gemini API error ${response.status}: ${errorBody.slice(0, 500)}`
-        );
+        throw new Error(`Gemini API error ${response.status}`);
       }
 
       const data = (await response.json()) as GeminiResponse;
 
       if (data.error) {
         throw new Error(
-          `Gemini error ${data.error.code}: ${data.error.message}`
+          `Gemini error ${data.error.code}`
         );
       }
 

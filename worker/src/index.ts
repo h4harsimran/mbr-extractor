@@ -1,37 +1,43 @@
 // ── Hono app entry point ───────────────────────────────────────────
 
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import extractRouter from "./routes/extract";
+import { getConfig, isAllowedOrigin } from "./config";
 import type { Env } from "./types";
 
 const app = new Hono<{ Bindings: Env }>();
 
-// ── CORS — allow frontend origin ───────────────────────────────────
-app.use(
-  "/api/*",
-  cors({
-    origin: (origin) => {
-      // Localhost or requests with missing origins (some tools) default to local port.
-      if (!origin) return "http://localhost:5173";
-      // Allow local development and exact Pages production domain explicitly
-      if (origin === "https://mbr-extractor-frontend.pages.dev" || origin.startsWith("http://localhost:")) {
-        return origin;
-      }
-      return "http://localhost:5173"; // Default fallback
-    },
-    allowMethods: ["POST", "GET", "OPTIONS"],
-    allowHeaders: ["Content-Type"],
-    maxAge: 86400,
-  })
-);
+const SECURITY_HEADERS = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  "Cross-Origin-Resource-Policy": "same-site",
+};
 
-// ── Health check ───────────────────────────────────────────────────
-app.get("/api/health", (c) => {
-  return c.json({ status: "ok", service: "mbr-extractor-api" });
+app.use("*", async (c, next) => {
+  const config = getConfig(c.env);
+  const origin = c.req.header("Origin") ?? null;
+  const allowed = isAllowedOrigin(origin, config);
+
+  Object.entries(SECURITY_HEADERS).forEach(([key, value]) => c.header(key, value));
+  c.header("Vary", "Origin");
+
+  if (allowed && origin) {
+    c.header("Access-Control-Allow-Origin", origin);
+    c.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    c.header("Access-Control-Allow-Headers", "Content-Type");
+    c.header("Access-Control-Max-Age", "86400");
+  }
+
+  if (c.req.method === "OPTIONS") {
+    return c.body(null, allowed ? 204 : 403);
+  }
+
+  await next();
 });
 
-// ── Extraction routes ──────────────────────────────────────────────
+app.get("/api/health", (c) => c.json({ status: "ok", service: "mbr-extractor-api" }));
 app.route("/api", extractRouter);
 
 export default app;

@@ -1,145 +1,89 @@
 # MBR Extractor
 
-<p align="center">
-  <strong>AI-assisted structured data extraction for Master Batch Record PDFs.</strong>
-</p>
+<p align="center"><strong>Lightweight AI-assisted structured data extraction for Master Batch Record PDFs.</strong></p>
 
-<p align="center">
-  <a href="https://mbr-extractor-frontend.pages.dev">Live Demo</a>
-</p>
+MBR Extractor renders PDF pages in the browser, sends page images to a Cloudflare Worker, calls Gemini for structured extraction, validates and normalizes the model response, and lets a human review/edit rows before CSV export.
 
-<p align="center">
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.x-blue">
-  <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB">
-  <img alt="Vite" src="https://img.shields.io/badge/Vite-6-646CFF">
-  <img alt="Cloudflare Workers" src="https://img.shields.io/badge/Cloudflare-Workers-F38020">
-  <img alt="Gemini" src="https://img.shields.io/badge/Gemini-API-4285F4">
-  <img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg">
-</p>
-
-MBR Extractor converts scanned or image-based Master Batch Record pages into structured reviewable rows and exports the result as CSV. The frontend renders each PDF page in the browser, sends page images to a Cloudflare Worker, validates the Gemini response, and lets the user review or edit extracted values before downloading the final dataset.
+> **Important:** MBRs are sensitive records. The app does not intentionally store uploaded PDFs or extracted rows server-side, but rendered page images are sent to Gemini during extraction. This is **not** a validated GMP system.
 
 ## Features
 
-- PDF upload with browser-side page rendering using `pdf.js`
-- Page-by-page extraction through a Cloudflare Worker API
-- Gemini-powered extraction optimized for manufacturing batch records
-- Strict JSON validation with Zod before results are accepted
-- Batch lot number extraction from page headers, footers, or metadata regions
-- Editable results table for correcting extracted values before export
-- Confidence scoring and review flags for ambiguous or incomplete rows
-- CSV export with batch lot number, parameters, target values, actual values, units, comments, initials, dates, confidence, and review status
-- Parallel page processing with progress tracking
-- Local session restore using browser `localStorage`
-- No app database and no authentication in the current MVP
+- Browser-side PDF rendering with `pdf.js`
+- Upload preflight with file size, page count, estimated API calls, and privacy notice
+- Conservative extraction concurrency and page/file limits to protect API cost
+- Cloudflare Worker request validation before Gemini calls
+- Hardened API error shape without raw provider/model output in production
+- Strict Zod model validation, normalization, structured warnings, and human review flags
+- Editable results table, failed-page retry, partial-export confirmation, and CSV export summary
+- CSV formula-injection protection
+- Security headers for Worker and Cloudflare Pages static assets
+- npm root orchestration, tests, and CI
 
-## Demo
+## Documentation
 
-Live application: <https://mbr-extractor-frontend.pages.dev>
+- [Product scope](docs/product-scope.md)
+- [Production checklist](docs/production-checklist.md)
+- [Sample data policy](docs/sample-data-policy.md)
+- [Security policy](SECURITY.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [MIT License](LICENSE)
 
 ## Architecture
 
 ```text
-┌───────────────────────────────┐       ┌────────────────────────────────┐
-│ Frontend: React + Vite         │       │ Backend: Hono + Workers         │
-│ Hosted on Cloudflare Pages     │       │ Hosted on Cloudflare Workers    │
-│                               │       │                                │
-│ PDF upload                    │       │ POST /api/extract-page          │
-│   └─ pdf.js renders pages     │       │   └─ validates request          │
-│      at 200 DPI               │       │      └─ calls Gemini API        │
-│                               │       │         └─ validates JSON       │
-│ Results table                 │◄──────│            with Zod             │
-│ CSV export                    │       │                                │
-└───────────────────────────────┘       └────────────────────────────────┘
+Frontend: React + Vite + TypeScript       Worker: Hono on Cloudflare Workers
+PDF upload and pdf.js rendering     ───▶  POST /api/extract-page
+Review/edit extracted rows          ◀───  Gemini call + Zod validation
+CSV export in browser                     No app database/auth/storage
 ```
 
-### Data flow
+## Local development
 
-1. The user uploads a PDF in the browser.
-2. `pdf.js` renders each page to an off-screen canvas.
-3. Each rendered page is converted to a base64 image.
-4. The frontend sends one page image at a time to `/api/extract-page`.
-5. The Worker forwards the image and extraction prompt to Gemini.
-6. The Worker validates the returned JSON with Zod.
-7. The frontend displays extracted rows for review and correction.
-8. The final reviewed data is exported as CSV in the browser.
+```bash
+npm run install:all
+cp .env.example worker/.dev.vars
+# edit worker/.dev.vars and set GEMINI_API_KEY for local-only testing
+npm run dev:worker
+npm run dev:frontend
+```
 
-## Tech Stack
+Root scripts:
 
-| Area | Technology |
+| Command | Purpose |
 | --- | --- |
-| Frontend | React 18, Vite 6, TypeScript |
-| PDF rendering | `pdfjs-dist` |
-| Backend | Hono on Cloudflare Workers |
-| Validation | Zod |
-| AI extraction | Gemini API |
-| Hosting | Cloudflare Pages + Cloudflare Workers |
-| Storage | Browser `localStorage` only for session restore |
+| `npm run install:all` | Install frontend and worker dependencies. |
+| `npm run dev:frontend` | Start the Vite frontend. |
+| `npm run dev:worker` | Start the Worker with Wrangler. |
+| `npm run build` | Build the frontend. |
+| `npm run typecheck` | Typecheck frontend and worker. |
+| `npm run test` | Run frontend and worker tests. |
 
-## Repository Structure
+## Configuration
 
-```text
-mbr-extractor/
-├── frontend/
-│   ├── src/
-│   │   ├── components/          # Upload, progress, and results UI
-│   │   ├── lib/                 # PDF rendering, API client, CSV builder
-│   │   ├── App.tsx              # Main extraction workflow
-│   │   └── types.ts             # Frontend types
-│   ├── package.json
-│   └── vite.config.ts
-│
-├── worker/
-│   ├── src/
-│   │   ├── lib/                 # Gemini client, prompts, validator
-│   │   ├── routes/              # API routes
-│   │   ├── index.ts             # Hono app entry point
-│   │   └── types.ts             # Worker types
-│   ├── package.json
-│   └── wrangler.toml
-│
-└── README.md
-```
+Frontend:
 
-## Extracted CSV Fields
+- `VITE_API_URL` — Worker API base URL, for example `https://<worker-domain>/api`.
 
-The exported CSV includes the following columns:
+Worker:
 
-```text
-page_number
-lot_number
-row_id
-parameter_label
-target_value
-actual_value
-units
-comments
-performed_by_initials
-performed_date
-verified_by_initials
-verified_date
-extraction_confidence
-needs_review
-```
+- `GEMINI_API_KEY` — required secret; never expose it in the frontend.
+- `GEMINI_MODEL` — defaults to `gemini-3-flash-preview`.
+- `ALLOWED_ORIGINS` — comma-separated exact browser origins allowed by CORS.
+- `MAX_REQUEST_BYTES` — maximum JSON request body size.
+- `MAX_IMAGE_BASE64_CHARS` — maximum base64 page image length.
+- `DEBUG_RAW_MODEL_OUTPUT` — set `false` in production; raw model output is included only when `true`.
 
 ## API
 
 ### `GET /api/health`
 
-Returns a basic health check response.
-
 ```json
-{
-  "status": "ok",
-  "service": "mbr-extractor-api"
-}
+{ "status": "ok", "service": "mbr-extractor-api" }
 ```
 
 ### `POST /api/extract-page`
 
-Extracts structured data from one rendered PDF page image.
-
-Request body:
+Request:
 
 ```json
 {
@@ -149,7 +93,7 @@ Request body:
 }
 ```
 
-Successful response:
+Success:
 
 ```json
 {
@@ -171,180 +115,71 @@ Successful response:
         "verified_by_initials": "CD",
         "verified_date": "2026-01-15",
         "extraction_confidence": 0.94,
-        "needs_review": false
+        "needs_review": false,
+        "warnings": []
       }
-    ]
+    ],
+    "warnings": []
   },
-  "errors": [],
-  "raw_text": "..."
+  "errors": []
 }
 ```
 
-## Local Development
+Error responses use a sanitized shape and do not expose raw Gemini/provider bodies:
 
-### Prerequisites
-
-- Node.js 20+
-- npm
-- Cloudflare Wrangler access through `npx wrangler`
-- Gemini API key
-
-### 1. Run the Worker
-
-```bash
-cd worker
-npm install
+```json
+{
+  "success": false,
+  "page_extraction": null,
+  "errors": [{ "code": "INVALID_REQUEST", "message": "invalid request" }]
+}
 ```
 
-Create `worker/.dev.vars`:
+Possible error codes include `INVALID_REQUEST`, `PAYLOAD_TOO_LARGE`, `PROVIDER_FAILED`, `INVALID_MODEL_JSON`, and `SERVER_MISCONFIGURED`.
 
-```bash
-GEMINI_API_KEY=your-gemini-api-key
+## Extracted CSV Fields
+
+```text
+page_number
+lot_number
+row_id
+parameter_label
+target_value
+actual_value
+units
+comments
+performed_by_initials
+performed_date
+verified_by_initials
+verified_date
+extraction_confidence
+needs_review
+review_reason
+edited_by_user
 ```
 
-Start the Worker locally:
-
-```bash
-npm run dev
-```
-
-The Worker runs on `http://localhost:8787` by default.
-
-### 2. Run the Frontend
-
-In a second terminal:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The frontend runs on `http://localhost:5173` and proxies `/api` requests to the local Worker.
+CSV values beginning with `=`, `+`, `-`, `@`, tab, or carriage return are prefixed to reduce spreadsheet formula-injection risk.
 
 ## Deployment
 
-### Worker API
+### Cloudflare Pages
 
-Deploy the Worker from the `worker` directory:
+- Root directory: repository root
+- Build command: `npm run build --prefix frontend`
+- Build output directory: `frontend/dist`
+- Environment variable: `VITE_API_URL=https://<worker-domain>/api`
 
-```bash
-cd worker
-npm install
-npx wrangler login
-npx wrangler secret put GEMINI_API_KEY
-npx wrangler deploy
-```
-
-`GEMINI_MODEL` is configured in `worker/wrangler.toml`:
-
-```toml
-GEMINI_MODEL = "gemini-3-flash-preview"
-```
-
-Update that value only if the Worker should use a different Gemini model.
-
-### Frontend on Cloudflare Pages
-
-The frontend is a Vite static app. Deploy it through the Cloudflare Pages dashboard or with the Pages CLI.
-
-#### Option A: Cloudflare Pages dashboard
-
-Use these Pages build settings:
-
-```text
-Framework preset: Vite
-Root directory: frontend
-Build command: npm run build
-Build output directory: dist
-```
-
-Set this Pages environment variable before building if the Worker is deployed on a separate Workers domain:
-
-```text
-VITE_API_URL=https://your-worker-domain.workers.dev/api
-```
-
-#### Option B: Cloudflare Pages CLI
+### Cloudflare Worker
 
 ```bash
-cd frontend
-npm install
-VITE_API_URL=https://your-worker-domain.workers.dev/api npm run build
-npx wrangler pages deploy dist --project-name=mbr-extractor-frontend
+npm run deploy --prefix worker
+npx wrangler secret put GEMINI_API_KEY --cwd worker
 ```
 
-If the frontend and Worker are deployed on the same origin behind a route or proxy, `VITE_API_URL` can be omitted and the frontend will call `/api`.
+Set production `ALLOWED_ORIGINS` to exact Pages origins. Keep `DEBUG_RAW_MODEL_OUTPUT=false`.
 
-The Worker CORS configuration currently allows localhost development and the deployed Cloudflare Pages domain. Add any custom production domain to the Worker CORS allowlist before using a custom frontend domain.
-
-## Review and Accuracy Notes
-
-This project is designed to accelerate data extraction from MBR PDFs, not to replace human review. Extracted values should be checked before use in GMP, quality, regulatory, or batch-release workflows.
-
-Important behavior:
-
-- The app does not store uploaded PDFs or extracted rows in an application database.
-- Page images are sent to the configured Gemini API for extraction.
-- Missing actual values, missing performed-by initials, and missing verified-by initials are automatically flagged for review.
-- Low-confidence or ambiguous fields should be corrected in the results table before CSV export.
-
-## Current Scope
-
-Included:
-
-- Single-PDF upload
-- Page-level extraction
-- Editable review table
-- CSV export
-- Local session restore
-- Cloudflare Pages and Workers deployment
-
-Not included:
-
-- User accounts
-- Database persistence
-- Audit trails
-- Role-based review workflows
-- Electronic signatures
-- Validated GMP system controls
-
-## Development Commands
-
-### Frontend
-
-```bash
-cd frontend
-npm run dev
-npm run build
-npm run preview
-```
-
-Deploy with Cloudflare Pages dashboard settings or:
-
-```bash
-cd frontend
-VITE_API_URL=https://your-worker-domain.workers.dev/api npm run build
-npx wrangler pages deploy dist --project-name=mbr-extractor-frontend
-```
-
-### Worker
-
-```bash
-cd worker
-npm run dev
-npm run typecheck
-npx wrangler deploy
-```
-
-## Security and Privacy
-
-- Keep `GEMINI_API_KEY` only on the Worker side.
-- Do not expose Gemini credentials through frontend environment variables.
-- Treat uploaded MBRs as sensitive manufacturing records.
-- Review AI-extracted output before using it for operational or quality decisions.
-- Add appropriate access controls, retention controls, and audit trails before adapting this MVP for regulated production use.
+Recommended manual Cloudflare dashboard step: add a WAF/rate-limit rule for `POST /api/extract-page` to limit excessive per-IP requests and protect Gemini spend.
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
