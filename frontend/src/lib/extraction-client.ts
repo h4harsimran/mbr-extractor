@@ -1,4 +1,5 @@
-import type { BuildScopeResponse, ExtractPageResponse, ScopedExtractionPlan } from "../types";
+import type { BuildScopeResponse, ExtractPageResponse, ExtractionMode, ScopedExtractionPlan } from "../types";
+import { validateScopedExtractionPlan } from "./scope-validation";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 const MAX_RETRIES = 2;
@@ -45,10 +46,15 @@ export async function buildScopeFromApi(
 export async function extractPageFromApi(
   imageBase64: string,
   pageNumber: number,
+  extractionMode: ExtractionMode,
   mimeType = "image/jpeg",
   signal?: AbortSignal,
   scopedPlan?: ScopedExtractionPlan
 ): Promise<ExtractPageResponse> {
+  if (extractionMode === "scoped" && (!scopedPlan || !validateScopedExtractionPlan(scopedPlan).valid)) {
+    return { success: false, page_extraction: null, scoped_page_extraction: null, errors: [{ code: "MISSING_SCOPE", message: "Scoped extraction requires an approved valid scope before calling the Worker." }] };
+  }
+
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -60,8 +66,8 @@ export async function extractPageFromApi(
           image_base64: imageBase64,
           page_number: pageNumber,
           mime_type: mimeType,
-          extraction_mode: scopedPlan ? "scoped" : "full",
-          ...(scopedPlan ? { scope: scopedPlan } : {}),
+          extraction_mode: extractionMode,
+          ...(extractionMode === "scoped" ? { scope: scopedPlan } : {}),
         }),
         signal,
       });

@@ -9,3 +9,10 @@ Do not commit:
 - Gemini API keys, Cloudflare tokens, or `.dev.vars` files.
 
 Synthetic samples should be clearly fictional and should not resemble a real regulated record closely enough to create confidentiality or compliance risk.
+
+## Template and review data policy
+
+- Do not commit real MBRs, real batch data, real rendered page previews, or screenshots containing regulated/client data.
+- Exported scoped templates can reveal process parameter names, synonyms, expected units, and internal terminology. Treat them as sensitive when they reflect real processes.
+- Local template testing should use synthetic parameter names or deliberately generic examples.
+- Side-by-side review screenshots for documentation must use sanitized PDFs and synthetic extraction rows only.

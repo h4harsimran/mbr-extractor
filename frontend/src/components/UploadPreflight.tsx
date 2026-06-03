@@ -3,6 +3,8 @@ import type { ExtractionMode, ScopedExtractionPlan, UploadPreflight as UploadPre
 import ScopeInput from "./scope/ScopeInput";
 import ScopeModeSelector from "./scope/ScopeModeSelector";
 import ScopeReview from "./scope/ScopeReview";
+import ScopeTemplateManager from "./scope/ScopeTemplateManager";
+import { validateScopedExtractionPlan } from "../lib/scope-validation";
 
 interface UploadPreflightProps {
   preflight: UploadPreflightData;
@@ -19,6 +21,7 @@ interface UploadPreflightProps {
   onBuildScope: () => void;
   onScopeChange: (scope: ScopedExtractionPlan) => void;
   onApproveScope: () => void;
+  onLoadTemplateScope: (scope: ScopedExtractionPlan) => void;
   onStart: () => void;
   onCancel: () => void;
 }
@@ -38,10 +41,12 @@ export default function UploadPreflight({
   onBuildScope,
   onScopeChange,
   onApproveScope,
+  onLoadTemplateScope,
   onStart,
   onCancel,
 }: UploadPreflightProps) {
-  const canStart = extractionMode === "full" || (Boolean(scopedPlan) && scopeApproved);
+  const validation = scopedPlan ? validateScopedExtractionPlan(scopedPlan) : { valid: false, errors: ["No scope has been built or loaded."] };
+  const canStart = extractionMode === "full" || (Boolean(scopedPlan) && scopeApproved && validation.valid);
   return (
     <div className="card card-lg fade-in">
       <h2 className="progress-title">Review extraction before starting</h2>
@@ -56,7 +61,13 @@ export default function UploadPreflight({
         <>
           <ScopeInput rawParameters={rawParameters} documentContext={documentContext} loading={scopeLoading} onRawParametersChange={onRawParametersChange} onDocumentContextChange={onDocumentContextChange} onBuildScope={onBuildScope} />
           {scopeWarnings.map((warning) => <div className="error-banner" key={warning} style={{ marginTop: 12 }}>{warning}</div>)}
-          {scopedPlan && <ScopeReview scope={scopedPlan} approved={scopeApproved} onChange={onScopeChange} onApprove={onApproveScope} />}
+          <ScopeTemplateManager currentScope={scopedPlan} onLoadScope={onLoadTemplateScope} />
+          {scopedPlan && (
+            <>
+              {!validation.valid && <div className="error-banner" style={{ marginTop: 12 }}><strong>Scope validation:</strong><ul>{validation.errors.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+              <ScopeReview scope={scopedPlan} approved={scopeApproved} validationErrors={validation.errors} onChange={onScopeChange} onApprove={onApproveScope} />
+            </>
+          )}
         </>
       )}
       <div className="error-banner" style={{ marginTop: 24, borderColor: "var(--warning)", color: "var(--warning)" }}>

@@ -6,7 +6,8 @@ import UploadPreflight from "./components/UploadPreflight";
 import { bytesToMb, extractionConfig } from "./config/extraction";
 import { buildScopeFromApi, extractPageFromApi } from "./lib/extraction-client";
 import { loadPdf, renderPage } from "./lib/pdf-renderer";
-import type { AppState, ExtractedRow, ExtractionMode, PageExtraction, PageProgress, ScopedExtractionPlan, ScopedExtractionResult, ScopedPageExtraction, UploadPreflight as UploadPreflightData } from "./types";
+import type { AppState, ExtractedRow, ExtractionMode, PageExtraction, PagePreview, PageProgress, ScopedExtractionPlan, ScopedExtractionResult, ScopedPageExtraction, UploadPreflight as UploadPreflightData } from "./types";
+import { validateScopedExtractionPlan } from "./lib/scope-validation";
 
 const SESSION_KEY = "mbr-session";
 
@@ -35,6 +36,7 @@ export default function App() {
   const [scopeApproved, setScopeApproved] = useState<boolean>(() => saved?.scopeApproved || false);
   const [scopeLoading, setScopeLoading] = useState(false);
   const [scopeWarnings, setScopeWarnings] = useState<string[]>([]);
+  const [pagePreviews, setPagePreviews] = useState<PagePreview[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const initializePages = (totalPages: number): PageProgress[] =>
@@ -81,6 +83,11 @@ export default function App() {
       return;
     }
 
+    if (extractionMode === "scoped" && (!scopeApproved || !scopedPlan || !validateScopedExtractionPlan(scopedPlan).valid)) {
+      setError("Approve a valid scoped extraction plan before starting scoped extraction.");
+      return;
+    }
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setError(null);
@@ -89,12 +96,14 @@ export default function App() {
     setStartTime(Date.now());
 
     const pageNumbers = targetPages ?? Array.from({ length: preflight.pageCount }, (_, i) => i + 1);
-    if (!targetPages) setPages(initializePages(preflight.pageCount));
-    else {
+    if (!targetPages) {
+      setPages(initializePages(preflight.pageCount));
+      setPagePreviews([]);
+    } else {
       setPages((prev) =>
         prev.map((page) =>
           pageNumbers.includes(page.pageNumber)
-            ? { ...page, status: "pending", error: null, extraction: null }
+            ? { ...page, status: "pending", error: null, extraction: null, scopedExtraction: null }
             : page
         )
       );
@@ -110,8 +119,9 @@ export default function App() {
           setPages((prev) => prev.map((p) => (p.pageNumber === pageNum ? { ...p, status: "processing" } : p)));
           try {
             const rendered = await renderPage(pdf!, pageNum);
+            setPagePreviews((prev) => [...prev.filter((preview) => preview.pageNumber !== pageNum), { pageNumber: pageNum, dataUrl: rendered.dataUrl, width: rendered.width, height: rendered.height }].sort((a, b) => a.pageNumber - b.pageNumber));
             if (controller.signal.aborted) throw new DOMException("Extraction cancelled", "AbortError");
-            const result = await extractPageFromApi(rendered.base64Image, pageNum, rendered.mimeType, controller.signal, extractionMode === "scoped" ? scopedPlan ?? undefined : undefined);
+            const result = await extractPageFromApi(rendered.base64Image, pageNum, extractionMode, rendered.mimeType, controller.signal, extractionMode === "scoped" ? scopedPlan ?? undefined : undefined);
             if (result.success && (result.page_extraction || result.scoped_page_extraction)) {
               setPages((prev) =>
                 prev.map((p) =>
@@ -150,7 +160,7 @@ export default function App() {
       abortControllerRef.current = null;
       setAppState("results");
     }
-  }, [preflight, extractionMode, scopedPlan]);
+  }, [preflight, extractionMode, scopedPlan, scopeApproved]);
 
   const handleCancelExtraction = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -169,6 +179,7 @@ export default function App() {
     setScopedPlan(null);
     setScopeApproved(false);
     setScopeWarnings([]);
+    setPagePreviews([]);
   }, []);
 
   const handleUpdateRow = useCallback((pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string | boolean | number) => {
@@ -188,6 +199,22 @@ export default function App() {
     );
   }, []);
 
+  const handleUpdateScopedRow = useCallback((pageNumber: number, rowIndex: number, field: keyof ScopedExtractionResult, value: string | boolean | number | string[] | null) => {
+    setPages((prev) =>
+      prev.map((p) => {
+        if (p.pageNumber !== pageNumber || !p.scopedExtraction) return p;
+        return {
+          ...p,
+          scopedExtraction: {
+            ...p.scopedExtraction,
+            scoped_results: p.scopedExtraction.scoped_results.map((r, i) =>
+              i === rowIndex ? { ...r, [field]: value, edited_by_user: true, needs_review: field === "needs_review" ? Boolean(value) : r.needs_review } : r
+            ),
+          },
+        };
+      })
+    );
+  }, []);
 
   const handleBuildScope = useCallback(async () => {
     setScopeLoading(true);
@@ -212,6 +239,23 @@ export default function App() {
   const handleScopeChange = useCallback((scope: ScopedExtractionPlan) => {
     setScopedPlan(scope);
     setScopeApproved(false);
+  }, []);
+
+  const handleApproveScope = useCallback(() => {
+    const validation = validateScopedExtractionPlan(scopedPlan);
+    if (!validation.valid) {
+      setError(validation.errors.join(" "));
+      setScopeApproved(false);
+      return;
+    }
+    setError(null);
+    setScopeApproved(true);
+  }, [scopedPlan]);
+
+  const handleLoadTemplateScope = useCallback((scope: ScopedExtractionPlan) => {
+    setScopedPlan(scope);
+    setScopeApproved(false);
+    setError("Template loaded. Review and approve it before starting extraction.");
   }, []);
 
   useEffect(() => {
@@ -251,7 +295,8 @@ export default function App() {
             onDocumentContextChange={setDocumentContext}
             onBuildScope={handleBuildScope}
             onScopeChange={handleScopeChange}
-            onApproveScope={() => setScopeApproved(true)}
+            onApproveScope={handleApproveScope}
+            onLoadTemplateScope={handleLoadTemplateScope}
             onStart={() => processPages()}
             onCancel={handleReset}
           />
@@ -269,6 +314,8 @@ export default function App() {
             failedCount={failedPages.length}
             onReset={handleReset}
             onUpdateRow={handleUpdateRow}
+            onUpdateScopedRow={handleUpdateScopedRow}
+            pagePreviews={pagePreviews}
             onRetryPage={(pageNumber) => processPages([pageNumber])}
             onRetryFailed={() => processPages(failedPages.map((page) => page.pageNumber))}
           />

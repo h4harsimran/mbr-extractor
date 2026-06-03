@@ -21,18 +21,31 @@ export const ScopedValueTypeSchema = z.enum([
 
 export const ScopedEvidenceSchema = z.enum(["page_number", "source_label", "nearby_text"]);
 
-const trimmedString = (max: number) =>
-  z.string().trim().min(1).max(max).refine((value) => !INSTRUCTION_LIKE_RE.test(value), {
+const noInstructionText = (max: number, min = 1) =>
+  z.string().trim().min(min).max(max).refine((value) => !INSTRUCTION_LIKE_RE.test(value), {
     message: "instruction-like text is not allowed in scoped parameters",
   });
+
+const dedupeStringArray = (items: string[]) => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of items) {
+    const trimmed = item.trim();
+    const key = trimmed.toLowerCase();
+    if (!trimmed || seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+  return result;
+};
 
 export const ScopedParameterSchema = z
   .object({
     parameter_id: z.string().trim().regex(SAFE_SLUG_RE).max(80),
-    display_name: trimmedString(120),
-    description: z.string().trim().max(500).default(""),
-    expected_units: z.array(z.string().trim().min(1).max(40)).max(MAX_EXPECTED_UNITS_PER_PARAMETER).default([]),
-    synonyms: z.array(z.string().trim().min(1).max(120)).max(MAX_SYNONYMS_PER_PARAMETER).default([]),
+    display_name: noInstructionText(120),
+    description: noInstructionText(500, 0).default(""),
+    expected_units: z.array(noInstructionText(40)).max(MAX_EXPECTED_UNITS_PER_PARAMETER).default([]).transform(dedupeStringArray),
+    synonyms: z.array(noInstructionText(120)).max(MAX_SYNONYMS_PER_PARAMETER).default([]).transform(dedupeStringArray),
     value_types: z.array(ScopedValueTypeSchema).min(1).default(["actual_value"]),
     required_evidence: z.array(ScopedEvidenceSchema).min(1).default(["page_number", "source_label", "nearby_text"]),
     needs_review_rules: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
@@ -46,7 +59,11 @@ export const ScopedExtractionPlanSchema = z
     extraction_mode: z.literal("scoped"),
     parameters: z.array(ScopedParameterSchema).min(1).max(MAX_SCOPED_PARAMETERS),
   })
-  .strip();
+  .strip()
+  .refine((plan) => new Set(plan.parameters.map((parameter) => parameter.parameter_id)).size === plan.parameters.length, {
+    message: "duplicate parameter_id values are not allowed",
+    path: ["parameters"],
+  });
 
 export type ScopedValueType = z.infer<typeof ScopedValueTypeSchema>;
 export type ScopedParameter = z.infer<typeof ScopedParameterSchema>;

@@ -8,6 +8,7 @@ const renderScale = extractionConfig.renderDpi / 72;
 export interface RenderedPage {
   pageNumber: number;
   base64Image: string;
+  dataUrl: string;
   mimeType: "image/jpeg";
   width: number;
   height: number;
@@ -36,5 +37,5 @@ export async function renderPage(
   canvas.width = 0;
   canvas.height = 0;
 
-  return { pageNumber, base64Image, mimeType: "image/jpeg", width: viewport.width, height: viewport.height };
+  return { pageNumber, base64Image, dataUrl, mimeType: "image/jpeg", width: viewport.width, height: viewport.height };
 }

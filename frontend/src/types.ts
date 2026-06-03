@@ -64,6 +64,13 @@ export interface ScopedParameter {
   needs_review_rules: string[];
 }
 
+export interface PagePreview {
+  pageNumber: number;
+  dataUrl: string;
+  width: number;
+  height: number;
+}
+
 export interface ScopedExtractionPlan {
   scope_version: 1;
   document_type: "master_batch_record";
@@ -95,6 +102,16 @@ export interface ScopedPageExtraction {
   page_number: number;
   lot_number: string | null;
   scoped_results: ScopedExtractionResult[];
+}
+
+export interface ScopedExtractionTemplate {
+  template_version: 1;
+  template_id: string;
+  name: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  scope: ScopedExtractionPlan;
 }
 
 export type ExtractionMode = "full" | "scoped";

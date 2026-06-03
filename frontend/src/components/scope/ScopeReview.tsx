@@ -5,6 +5,7 @@ interface ScopeReviewProps {
   approved: boolean;
   onChange: (scope: ScopedExtractionPlan) => void;
   onApprove: () => void;
+  validationErrors?: string[];
 }
 
 const blankParameter = (): ScopedParameter => ({
@@ -18,7 +19,7 @@ const blankParameter = (): ScopedParameter => ({
   needs_review_rules: ["missing_actual_value", "unit_mismatch", "low_confidence"],
 });
 
-export default function ScopeReview({ scope, approved, onChange, onApprove }: ScopeReviewProps) {
+export default function ScopeReview({ scope, approved, onChange, onApprove, validationErrors = [] }: ScopeReviewProps) {
   const updateParameter = (index: number, patch: Partial<ScopedParameter>) => {
     onChange({ ...scope, parameters: scope.parameters.map((parameter, i) => (i === index ? { ...parameter, ...patch } : parameter)) });
   };
@@ -41,7 +42,7 @@ export default function ScopeReview({ scope, approved, onChange, onApprove }: Sc
       ))}
       <div className="results-actions" style={{ marginTop: 16 }}>
         <button className="btn btn-secondary" onClick={() => onChange({ ...scope, parameters: [...scope.parameters, blankParameter()] })}>Add parameter</button>
-        <button className="btn btn-success" disabled={scope.parameters.length === 0} onClick={onApprove}>{approved ? "Scope approved" : "Approve scope"}</button>
+        <button className="btn btn-success" disabled={validationErrors.length > 0 || scope.parameters.length === 0} onClick={onApprove}>{approved ? "Scope approved" : "Approve scope"}</button>
       </div>
     </div>
   );

@@ -24,6 +24,21 @@ function invalid(message: string, status: 400 | 413 = 400) {
   return { status, body: { success: false, error: apiError("INVALID_SCOPE_INPUT", message) } };
 }
 
+async function readBoundedJson(request: Request, maxBytes: number): Promise<{ ok: true; body: BuildScopeBody } | { ok: false; status: 400 | 413; message: string }> {
+  let bodyText: string;
+  try {
+    bodyText = await request.text();
+  } catch {
+    return { ok: false, status: 400, message: "Request body must be valid JSON." };
+  }
+  if (bodyText.length > maxBytes) return { ok: false, status: 413, message: "Scope builder request is too large." };
+  try {
+    return { ok: true, body: JSON.parse(bodyText) as BuildScopeBody };
+  } catch {
+    return { ok: false, status: 400, message: "Request body must be valid JSON." };
+  }
+}
+
 router.post("/build-scope", async (c) => {
   const config = getConfig(c.env);
   const contentLength = c.req.header("content-length");
@@ -32,13 +47,12 @@ router.post("/build-scope", async (c) => {
     return c.json(result.body, result.status);
   }
 
-  let body: BuildScopeBody;
-  try {
-    body = await c.req.json();
-  } catch {
-    const result = invalid("Request body must be valid JSON.");
+  const parsedBody = await readBoundedJson(c.req.raw, Math.min(config.maxRequestBytes, MAX_SCOPE_INPUT_CHARS + 3000));
+  if (!parsedBody.ok) {
+    const result = invalid(parsedBody.message, parsedBody.status);
     return c.json(result.body, result.status);
   }
+  const body = parsedBody.body;
 
   if (typeof body.raw_parameters !== "string" || body.raw_parameters.trim().length === 0) {
     const result = invalid("Provide at least one extraction parameter.");

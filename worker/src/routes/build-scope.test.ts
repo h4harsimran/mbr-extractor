@@ -49,3 +49,14 @@ describe("build-scope route", () => {
     expect(res.status).toBe(502);
   });
 });
+
+it("rejects oversized body without content length before Gemini", async () => {
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+  const res = await app.request("/api/build-scope", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "https://example.com" },
+    body: JSON.stringify({ raw_parameters: "a".repeat(13_500) }),
+  }, env);
+  expect(res.status).toBe(413);
+  expect(fetchSpy).not.toHaveBeenCalled();
+});
