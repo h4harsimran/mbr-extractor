@@ -1618,3 +1618,72 @@ input:focus-visible {
 .compact-scope-details[open] {
   margin-top: 12px;
 }
+
+.compact-parameter-card.has-blocking-errors {
+  border-color: color-mix(in srgb, var(--error) 60%, var(--border-glass));
+}
+
+.scope-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.validation-problem-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--error) 45%, var(--border-glass));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  color: var(--error);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.compact-scope-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr);
+  gap: 12px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.compact-units-field {
+  margin: 0;
+}
+
+.compact-hint-preview {
+  display: grid;
+  gap: 6px;
+}
+
+.compact-preview-text {
+  display: flex;
+  align-items: center;
+  min-height: 39px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.scope-safeguards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .compact-scope-row,
+  .scope-safeguards-grid {
+    grid-template-columns: 1fr;
+  }
+}

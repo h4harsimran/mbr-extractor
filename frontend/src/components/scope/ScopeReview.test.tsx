@@ -31,14 +31,16 @@ describe("ScopeReview", () => {
     render(<ScopeReview scope={scope} approved={false} onChange={onChange} onApprove={vi.fn()} />);
     fireEvent.change(screen.getByLabelText(/expected units/i), { target: { value: "mg, mg\nkg" } });
     expect(onChange).toHaveBeenLastCalledWith({ ...scope, parameters: [{ ...scope.parameters[0], expected_units: ["mg", "kg"] }] });
-    fireEvent.change(screen.getByLabelText(/synonyms/i), { target: { value: "acidity, acid" } });
+    fireEvent.click(screen.getByText(/edit details/i));
+    fireEvent.change(screen.getByLabelText(/matching hints/i), { target: { value: "acidity, acid" } });
     expect(onChange).toHaveBeenLastCalledWith({ ...scope, parameters: [{ ...scope.parameters[0], synonyms: ["acidity", "acid"] }] });
   });
 
   it("edits value types", () => {
     const onChange = vi.fn();
     render(<ScopeReview scope={scope} approved={false} onChange={onChange} onApprove={vi.fn()} />);
-    fireEvent.click(screen.getByLabelText(/target_value/i));
+    fireEvent.click(screen.getByText(/edit details/i));
+    fireEvent.click(screen.getByLabelText(/target value/i));
     expect(onChange).toHaveBeenCalledWith({ ...scope, parameters: [{ ...scope.parameters[0], value_types: ["actual_value", "target_value"] }] });
   });
 
