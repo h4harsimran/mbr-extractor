@@ -20,6 +20,9 @@ const needsReview = (row: ReviewRow) => {
   return row.needs_review && row.review_status !== "accepted" && row.review_status !== "not_applicable";
 };
 
+const selectedParameterLabel = (row: ReviewRow) => row.kind === "full" ? row.parameter_label ?? undefined : row.display_name;
+const selectedSourceLabel = (row: ReviewRow) => row.kind === "scoped" ? row.source_label ?? undefined : row.parameter_label ?? undefined;
+
 export default function ReviewWorkspace({ mode, pages, scopedPages, previews, initialPage, initialRow = null, onUpdateFullRow, onUpdateScopedRow, onRetryPage }: Props) {
   const pageNumbers = useMemo(() => {
     const nums = mode === "scoped" ? scopedPages.map((page) => page.page_number) : pages.map((page) => page.page_number);
@@ -41,6 +44,7 @@ export default function ReviewWorkspace({ mode, pages, scopedPages, previews, in
     : (pages.find((page) => page.page_number === targetPageNumber)?.rows ?? []).map((row, rowIdx) => ({ ...row, rowIdx, kind: "full" as const }));
 
   const rows = rowsForPage(pageNumber);
+  const selectedRow = selectedRowIndex !== null ? rows.find((row) => row.rowIdx === selectedRowIndex) : undefined;
 
   const moveToNextReviewItem = (currentPageNumber: number, currentRowIndex: number, fallbackToCurrent: boolean) => {
     const reviewItems = pageNumbers.flatMap((targetPageNumber) => rowsForPage(targetPageNumber).filter(needsReview).map((row) => ({ pageNumber: targetPageNumber, rowIndex: row.rowIdx })));
@@ -78,7 +82,16 @@ export default function ReviewWorkspace({ mode, pages, scopedPages, previews, in
 
   return (
     <div className="review-workspace">
-      <PagePreviewPanel preview={previews.find((preview) => preview.pageNumber === pageNumber)} pageNumber={pageNumber} pageNumbers={pageNumbers} zoom={zoom} onZoomChange={setZoom} onPageChange={(page) => { setPageNumber(page); setSelectedRowIndex(null); }} />
+      <PagePreviewPanel
+        preview={previews.find((preview) => preview.pageNumber === pageNumber)}
+        pageNumber={pageNumber}
+        pageNumbers={pageNumbers}
+        zoom={zoom}
+        selectedParameterLabel={selectedRow ? selectedParameterLabel(selectedRow) : undefined}
+        selectedSourceLabel={selectedRow ? selectedSourceLabel(selectedRow) : undefined}
+        onZoomChange={setZoom}
+        onPageChange={(page) => { setPageNumber(page); setSelectedRowIndex(null); }}
+      />
       <PageRowsPanel mode={mode} pageNumber={pageNumber} rows={rows} selectedRowIndex={selectedRowIndex} queueDrivenReview={queueDrivenReview} onSelectRow={setSelectedRowIndex} onUpdateFullRow={onUpdateFullRow} onUpdateScopedRow={onUpdateScopedRow} onRetryPage={onRetryPage} onAcceptAndNext={acceptAndNext} onSkipForNow={skipForNow} />
     </div>
   );
