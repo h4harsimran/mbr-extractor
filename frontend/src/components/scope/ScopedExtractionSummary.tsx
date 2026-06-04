@@ -20,7 +20,7 @@ export default function ScopedExtractionSummary({ pages }: { pages: ScopedPageEx
 
   return (
     <div>
-      <div className="results-actions" style={{ marginBottom: 16 }}>
+      <div className="results-actions scoped-summary-actions">
         <button className="btn btn-secondary" onClick={() => setView("page")}>By page</button>
         <button className="btn btn-secondary" onClick={() => setView("parameter")}>By parameter</button>
         <button className="btn btn-secondary" onClick={() => setView("review")}>Review only</button>

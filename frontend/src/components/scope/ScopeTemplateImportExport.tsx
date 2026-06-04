@@ -31,13 +31,13 @@ export default function ScopeTemplateImportExport({ templates, selectedTemplate,
 
   return (
     <div className="template-io" aria-label="Template import and export">
-      <div className="results-actions">
+      <div className="results-actions template-io-actions">
         <button className="btn btn-secondary" disabled={!selectedTemplate} onClick={() => selectedTemplate && downloadJson(exportScopedTemplate(selectedTemplate), `${selectedTemplate.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-template.json`)}>Export selected template</button>
         <button className="btn btn-secondary" disabled={templates.length === 0} onClick={() => downloadJson(exportAllScopedTemplates(templates), "mbr-scoped-templates.json")}>Export all templates</button>
         <input ref={inputRef} aria-label="Import template JSON" type="file" accept="application/json,.json" onChange={(event) => void handleFile(event.target.files?.[0])} />
       </div>
       {summary && (
-        <div className="error-banner" style={{ marginTop: 12, borderColor: summary.errors.length ? "var(--warning)" : "var(--success)", color: summary.errors.length ? "var(--warning)" : "var(--success)" }}>
+        <div className={`callout ${summary.errors.length ? "callout-warning" : "callout-success"}`}>
           Import summary: {summary.imported} imported, {summary.skipped} skipped, {summary.renamed} renamed.
           {summary.errors.length > 0 && <ul>{summary.errors.map((error) => <li key={error}>{error}</li>)}</ul>}
         </div>

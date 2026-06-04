@@ -2,15 +2,21 @@ import type { ExtractionMode } from "../../types";
 
 export default function ScopeModeSelector({ mode, onChange }: { mode: ExtractionMode; onChange: (mode: ExtractionMode) => void }) {
   return (
-    <fieldset className="scope-panel">
-      <legend className="scope-title">Extraction Mode</legend>
-      <label className="scope-option">
+    <fieldset className="mode-selector" aria-label="Extraction mode">
+      <legend className="sr-only">Extraction mode</legend>
+      <label className={`mode-option-card ${mode === "full" ? "selected" : ""}`}>
         <input type="radio" name="extraction-mode" checked={mode === "full"} onChange={() => onChange("full")} />
-        <span><strong>Full extraction</strong><br />Extract all relevant MBR rows from each page.</span>
+        <span className="mode-option-content">
+          <span className="mode-option-title">Full extraction</span>
+          <span className="mode-option-description">Extract all relevant MBR rows from every page. Recommended for most PDFs.</span>
+        </span>
       </label>
-      <label className="scope-option">
+      <label className={`mode-option-card ${mode === "scoped" ? "selected" : ""}`}>
         <input type="radio" name="extraction-mode" checked={mode === "scoped"} onChange={() => onChange("scoped")} />
-        <span><strong>Scoped extraction</strong><br />Extract only the parameters you define and approve.</span>
+        <span className="mode-option-content">
+          <span className="mode-option-title">Scoped extraction</span>
+          <span className="mode-option-description">Advanced: extract only approved parameters from a generated or saved scope.</span>
+        </span>
       </label>
     </fieldset>
   );

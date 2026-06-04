@@ -55,34 +55,72 @@ export default function ScopeReview({ scope, approved, onChange, onApprove, vali
     const current = scope.parameters[index].value_types;
     updateParameter(index, { value_types: checked ? [...current, value] : current.filter((item) => item !== value) });
   };
+  const cannotApprove = validationErrors.length > 0 || allParameterErrors.length > 0 || scope.parameters.length === 0;
+
   return (
-    <div className="scope-panel" aria-label="Scoped extraction review">
-      <h3 className="scope-title">Review scoped extraction plan</h3>
-      {scope.parameters.map((parameter, index) => {
-        const errors = parameterErrors(parameter, scope.parameters);
-        return (
-          <div className="scope-review-card" key={`${parameter.parameter_id}-${index}`}>
-            <div className="scope-review-row">
-              <label>Parameter ID<input aria-label="Parameter ID" className="editable-cell" value={parameter.parameter_id} onChange={(event) => updateParameter(index, { parameter_id: event.target.value.trim() })} /></label>
-              <label>Display name<input aria-label="Parameter name" className="editable-cell" value={parameter.display_name} onChange={(event) => updateParameter(index, { display_name: event.target.value })} /></label>
-              <button className="btn btn-secondary" onClick={() => removeParameter(index)}>Remove</button>
-            </div>
-            <label>Description<textarea aria-label="Parameter description" className="editable-cell" value={parameter.description} onChange={(event) => updateParameter(index, { description: event.target.value })} /></label>
-            <div className="scope-review-row">
-              <label>Expected units<textarea aria-label="Expected units" className="editable-cell" value={parameter.expected_units.join(", ")} onChange={(event) => updateParameter(index, { expected_units: parseList(event.target.value) })} /></label>
-              <label>Synonyms<textarea aria-label="Synonyms" className="editable-cell" value={parameter.synonyms.join(", ")} onChange={(event) => updateParameter(index, { synonyms: parseList(event.target.value) })} /></label>
-            </div>
-            <fieldset className="scope-review-meta"><legend><strong>Value types</strong></legend>
-              {VALUE_TYPES.map((value) => <label key={value} style={{ display: "inline-block", marginRight: 12 }}><input type="checkbox" checked={parameter.value_types.includes(value)} onChange={(event) => toggleValueType(index, value, event.target.checked)} /> {value}</label>)}
-            </fieldset>
-            <details className="scope-review-meta"><summary>Advanced evidence/review rules</summary><div><strong>Required evidence:</strong> {parameter.required_evidence.join(", ")}</div><div><strong>Review rules:</strong> {parameter.needs_review_rules.join(", ") || "None"}</div></details>
-            {errors.length > 0 && <ul className="error-banner">{errors.map((error) => <li key={error}>{error}</li>)}</ul>}
-          </div>
-        );
-      })}
-      <div className="results-actions" style={{ marginTop: 16 }}>
+    <div className="subsection-card" aria-label="Scoped extraction review">
+      <div className="section-header compact">
+        <span className="step-badge subtle">C</span>
+        <div>
+          <h3 className="section-title">Review generated scope</h3>
+          <p className="section-description">Confirm the display names, IDs, value types, and hints before approving scoped extraction.</p>
+        </div>
+      </div>
+      <div className="scope-parameter-list">
+        {scope.parameters.map((parameter, index) => {
+          const errors = parameterErrors(parameter, scope.parameters);
+          return (
+            <article className="scope-review-card" key={`${parameter.parameter_id}-${index}`}>
+              <div className="scope-card-heading">
+                <div className="scope-parameter-identity">
+                  <label className="input-label" htmlFor={`scope-display-${index}`}>Display name</label>
+                  <input id={`scope-display-${index}`} aria-label="Parameter name" className="editable-cell scope-primary-input" value={parameter.display_name} onChange={(event) => updateParameter(index, { display_name: event.target.value })} />
+                  <label className="parameter-id-label" htmlFor={`scope-id-${index}`}>Parameter ID</label>
+                  <input id={`scope-id-${index}`} aria-label="Parameter ID" className="editable-cell parameter-id-input" value={parameter.parameter_id} onChange={(event) => updateParameter(index, { parameter_id: event.target.value.trim() })} />
+                </div>
+                <button className="btn btn-secondary" onClick={() => removeParameter(index)}>Remove</button>
+              </div>
+
+              <div className="form-field-group">
+                <label className="input-label" htmlFor={`scope-description-${index}`}>Description</label>
+                <textarea id={`scope-description-${index}`} aria-label="Parameter description" className="editable-cell review-textarea" value={parameter.description} onChange={(event) => updateParameter(index, { description: event.target.value })} />
+              </div>
+
+              <div className="scope-field-grid">
+                <div className="form-field-group">
+                  <label className="input-label" htmlFor={`scope-units-${index}`}>Expected units</label>
+                  <textarea id={`scope-units-${index}`} aria-label="Expected units" className="editable-cell review-textarea small" value={parameter.expected_units.join(", ")} onChange={(event) => updateParameter(index, { expected_units: parseList(event.target.value) })} />
+                </div>
+                <div className="form-field-group">
+                  <label className="input-label" htmlFor={`scope-synonyms-${index}`}>Synonyms</label>
+                  <textarea id={`scope-synonyms-${index}`} aria-label="Synonyms" className="editable-cell review-textarea small" value={parameter.synonyms.join(", ")} onChange={(event) => updateParameter(index, { synonyms: parseList(event.target.value) })} />
+                </div>
+              </div>
+
+              <fieldset className="value-type-fieldset">
+                <legend>Value types</legend>
+                <div className="checkbox-wrap">
+                  {VALUE_TYPES.map((value) => <label key={value} className="checkbox-pill"><input type="checkbox" checked={parameter.value_types.includes(value)} onChange={(event) => toggleValueType(index, value, event.target.checked)} /> {value}</label>)}
+                </div>
+              </fieldset>
+
+              <details className="advanced-details">
+                <summary>Advanced evidence and review rules</summary>
+                <div><strong>Required evidence:</strong> {parameter.required_evidence.join(", ")}</div>
+                <div><strong>Review rules:</strong> {parameter.needs_review_rules.join(", ") || "None"}</div>
+              </details>
+
+              {errors.length > 0 && <ul className="callout callout-error scope-error-list" aria-label="Parameter errors">{errors.map((error) => <li key={error}>{error}</li>)}</ul>}
+            </article>
+          );
+        })}
+      </div>
+      <div className="action-bar scope-approval-bar">
         <button className="btn btn-secondary" onClick={() => onChange({ ...scope, parameters: [...scope.parameters, blankParameter()] })}>Add parameter</button>
-        <button className="btn btn-success" disabled={validationErrors.length > 0 || allParameterErrors.length > 0 || scope.parameters.length === 0} onClick={onApprove}>{approved ? "Scope approved" : "Approve scope"}</button>
+        <div className="approval-action">
+          {cannotApprove && <p className="helper-text">Resolve scope errors before approval.</p>}
+          <button className="btn btn-success" disabled={cannotApprove} onClick={onApprove}>{approved ? "Scope approved — ready to start" : "Approve scope and enable extraction"}</button>
+        </div>
       </div>
     </div>
   );

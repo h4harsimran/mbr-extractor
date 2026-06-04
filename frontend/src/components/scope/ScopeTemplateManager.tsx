@@ -52,11 +52,11 @@ export default function ScopeTemplateManager({ currentScope, onLoadScope }: Prop
   };
 
   return (
-    <div className="scope-panel" aria-label="Scoped extraction templates">
-      <h3 className="scope-title">Saved templates</h3>
-      <p className="upload-hint">Templates are stored only in browser localStorage. Loaded or imported templates must be approved before extraction starts.</p>
-      {message && <div className="info-banner" style={{ marginBottom: 12 }}>{message}</div>}
-      <div className="scope-review-row">
+    <div className="template-panel" aria-label="Scoped extraction templates">
+      <div className="section-header compact"><span className="step-badge subtle">B</span><div><h3 className="section-title">Or load template</h3><p className="section-description">Use a saved local template or a built-in starter instead of building from pasted text.</p></div></div>
+      <p className="helper-text">Templates are stored only in browser localStorage. Loaded or imported templates must be approved before extraction starts.</p>
+      {message && <div className="callout callout-info">{message}</div>}
+      <div className="template-controls">
         <select aria-label="Saved template" className="editable-cell" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
           <optgroup label="Local templates">
             {templates.map((template) => <option key={template.template_id} value={template.template_id}>{template.name}</option>)}
@@ -69,7 +69,7 @@ export default function ScopeTemplateManager({ currentScope, onLoadScope }: Prop
         <button className="btn btn-secondary" disabled={!selectedTemplate || selectedTemplate.template_id.startsWith("builtin_")} onClick={rename}>Rename</button>
         <button className="btn btn-secondary" disabled={!selectedTemplate || selectedTemplate.template_id.startsWith("builtin_")} onClick={remove}>Delete</button>
       </div>
-      <div className="scope-review-row" style={{ marginTop: 12 }}>
+      <div className="template-controls template-controls-spaced">
         <input aria-label="Template name" className="editable-cell" placeholder="Template name" value={name} onChange={(event) => setName(event.target.value)} />
         <button className="btn btn-success" disabled={!currentScope || !validateScopedExtractionPlan(currentScope).valid} onClick={saveCurrent}>Save current scope as template</button>
       </div>

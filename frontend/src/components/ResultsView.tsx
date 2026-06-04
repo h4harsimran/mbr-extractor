@@ -73,19 +73,43 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
   return (
     <div className="results-container fade-in">
       <div className="results-header">
-        <div><h2 className="results-title">{extractionMode === "scoped" ? "Scoped Extraction Results" : "Extraction Results"}</h2><div className="results-subtitle">{filename}</div></div>
-        <div className="results-actions"><button className="btn btn-secondary" onClick={onReset}>New PDF</button>{failedCount > 0 && <button className="btn btn-secondary" onClick={onRetryFailed}>Retry all failed</button>}<button className="btn btn-success" onClick={handleDownload} id="download-csv-btn">Download CSV</button></div>
+        <div className="results-heading-block">
+          <p className="eyebrow">{extractionMode === "scoped" ? "Scoped results" : "Full extraction"}</p>
+          <h2 className="results-title">Extraction Results</h2>
+          <div className="results-subtitle" title={filename}>{filename}</div>
+        </div>
+        <div className="results-actions primary-results-actions">
+          <button className="btn btn-success" onClick={handleDownload} id="download-csv-btn">Download CSV</button>
+          <button className="btn btn-secondary" onClick={onReset}>New PDF</button>
+          {failedCount > 0 && <button className="btn btn-secondary" onClick={onRetryFailed}>Retry failed pages</button>}
+        </div>
       </div>
-      {lotNumber !== "Not detected" && <div className="results-lot"><div className="lot-label">Batch Lot Number</div><div className="lot-value">{lotNumber}</div></div>}
-      <div className="results-summary" aria-label="Export summary">
-        <div className="stat-card"><div className="stat-value">{allPages.length}</div><div className="stat-label">Total pages</div></div><div className="stat-card"><div className="stat-value">{successfulPages}</div><div className="stat-label">Successful pages</div></div><div className="stat-card"><div className="stat-value">{failedCount}</div><div className="stat-label">Failed pages</div></div><div className="stat-card"><div className="stat-value">{totalRows}</div><div className="stat-label">{extractionMode === "scoped" ? "Scoped results" : "Rows"}</div></div><div className="stat-card"><div className="stat-value">{reviewCount}</div><div className="stat-label">Need review</div></div><div className="stat-card"><div className="stat-value">{editedCount}</div><div className="stat-label">Edited</div></div><div className="stat-card"><div className="stat-value">{(avgConfidence * 100).toFixed(0)}%</div><div className="stat-label">Avg confidence</div></div>
+
+      <div className="results-overview-card">
+        {lotNumber !== "Not detected" && <div className="results-lot compact-lot"><div className="lot-label">Batch Lot Number</div><div className="lot-value">{lotNumber}</div></div>}
+        <div className="metadata-grid results-metadata-grid" aria-label="Export summary">
+          <div className="metadata-item"><span className="metadata-label">Pages</span><span className="metadata-value metric-value">{successfulPages}/{allPages.length}</span></div>
+          <div className="metadata-item"><span className="metadata-label">Failed</span><span className="metadata-value metric-value">{failedCount}</span></div>
+          <div className="metadata-item"><span className="metadata-label">{extractionMode === "scoped" ? "Scoped results" : "Rows"}</span><span className="metadata-value metric-value">{totalRows}</span></div>
+          <div className="metadata-item"><span className="metadata-label">Need review</span><span className="metadata-value metric-value">{reviewCount}</span></div>
+          <div className="metadata-item"><span className="metadata-label">Edited</span><span className="metadata-value metric-value">{editedCount}</span></div>
+          <div className="metadata-item"><span className="metadata-label">Avg confidence</span><span className="metadata-value metric-value">{(avgConfidence * 100).toFixed(0)}%</span></div>
+        </div>
       </div>
-      {failedCount > 0 && <div className="error-banner" style={{ marginBottom: 24 }}>⚠️ {failedCount} page{failedCount > 1 ? "s" : ""} failed and will be omitted unless retried.<div style={{ marginTop: 12 }}>{failedPages.map((page) => <button key={page.pageNumber} className="btn btn-secondary" style={{ marginRight: 8, marginBottom: 8 }} onClick={() => onRetryPage(page.pageNumber)}>Retry page {page.pageNumber}</button>)}</div></div>}
+
+      {failedCount > 0 && (
+        <div className="callout callout-warning retry-callout">
+          <div><strong>{failedCount} page{failedCount > 1 ? "s" : ""} failed.</strong> Failed pages are omitted from CSV export unless retried.</div>
+          <div className="retry-button-list">
+            {failedPages.map((page) => <button key={page.pageNumber} className="btn btn-secondary" onClick={() => onRetryPage(page.pageNumber)}>Retry page {page.pageNumber}</button>)}
+          </div>
+        </div>
+      )}
 
       <div className="view-tabs" role="tablist" aria-label="Results views">
-        <button className={`tab-button ${viewTab === "table" ? "active" : ""}`} onClick={() => setViewTab("table")}>Table</button>
-        <button className={`tab-button ${viewTab === "review" ? "active" : ""}`} onClick={() => setViewTab("review")}>Side-by-side review</button>
-        <button className={`tab-button ${viewTab === "queue" ? "active" : ""}`} onClick={() => setViewTab("queue")}>Review queue ({reviewCount})</button>
+        <button className={`tab-button ${viewTab === "table" ? "active" : ""}`} role="tab" aria-selected={viewTab === "table"} onClick={() => setViewTab("table")}>Table</button>
+        <button className={`tab-button ${viewTab === "review" ? "active" : ""}`} role="tab" aria-selected={viewTab === "review"} onClick={() => setViewTab("review")}>Side-by-side review</button>
+        <button className={`tab-button ${viewTab === "queue" ? "active" : ""}`} role="tab" aria-selected={viewTab === "queue"} onClick={() => setViewTab("queue")}>Review queue ({reviewCount})</button>
       </div>
 
       {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} onSelect={openReviewTarget} />}
@@ -98,7 +122,7 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
       ) : (
         <div className="data-table-wrapper"><table className="data-table"><thead><tr><th>Page</th><th>Parameter</th><th>Target</th><th>Actual</th><th>Units</th><th>Performed</th><th>Verified</th><th>Conf.</th><th>Review</th></tr></thead><tbody>{paginatedRows.map((row, i) => <tr key={`${row.page_number}-${row.row_id}-${startIndex + i}`}><td>{row.page_number}</td><td><EditableCell value={row.parameter_label ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "parameter_label", v)} /></td><td><EditableCell value={row.target_value ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "target_value", v)} /></td><td><EditableCell value={row.actual_value ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "actual_value", v)} /></td><td><EditableCell value={row.units ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "units", v)} /></td><td>{row.performed_by_initials ?? "—"}</td><td>{row.verified_by_initials ?? "—"}</td><td><span className="confidence-bar"><span className={`confidence-fill ${confidenceClass(row.extraction_confidence)}`} style={{ width: `${row.extraction_confidence * 100}%` }} /></span>{(row.extraction_confidence * 100).toFixed(0)}%</td><td>{row.needs_review ? <button className="badge badge-warning" onClick={() => onUpdateRow(row.page_number, row.rowIdx, "needs_review", false)} title={row.warnings?.map((w) => w.code).join(", ")}>Review</button> : row.edited_by_user ? <span className="badge badge-success">Edited</span> : <span className="badge badge-success">OK</span>}</td></tr>)}</tbody></table></div>
       ))}
-      {viewTab === "table" && totalRows > rowsPerPage && <div className="pagination-controls" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: 16 }}><button className="btn btn-secondary" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Previous</button><span>Showing {startIndex + 1} to {Math.min(startIndex + rowsPerPage, totalRows)} of {totalRows} rows.</span><button className="btn btn-secondary" disabled={currentPage === totalPagesCount} onClick={() => setCurrentPage((p) => Math.min(totalPagesCount, p + 1))}>Next</button></div>}
+      {viewTab === "table" && totalRows > rowsPerPage && <div className="pagination-controls"><button className="btn btn-secondary" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Previous</button><span>Showing {startIndex + 1} to {Math.min(startIndex + rowsPerPage, totalRows)} of {totalRows} rows.</span><button className="btn btn-secondary" disabled={currentPage === totalPagesCount} onClick={() => setCurrentPage((p) => Math.min(totalPagesCount, p + 1))}>Next</button></div>}
     </div>
   );
 }
