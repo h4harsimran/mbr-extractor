@@ -17,12 +17,23 @@
 
 ## Cloudflare Worker
 
+`worker/wrangler.toml` is the production config and deploys the `mbr-extractor-api` Worker. Keep `worker/wrangler.preview.toml` for dev/preview deploys to the separate `mbr-extractor` Worker so branch merges do not retarget production deployments.
+
+Production deploy:
+
 ```bash
 npm run deploy --prefix worker
 npx wrangler secret put GEMINI_API_KEY --cwd worker
 ```
 
-Configure Worker variables in `worker/wrangler.toml` or the Cloudflare dashboard.
+Dev/preview deploy:
+
+```bash
+npx wrangler deploy --config worker/wrangler.preview.toml
+npx wrangler secret put GEMINI_API_KEY --config worker/wrangler.preview.toml
+```
+
+Configure non-secret Worker variables in the appropriate Wrangler config file or the Cloudflare dashboard. Do not commit secrets.
 
 ## Recommended rate limit
 
