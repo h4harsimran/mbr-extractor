@@ -28,7 +28,7 @@ export default function ReviewWorkspace({ mode, pages, scopedPages, previews, in
   const [pageNumber, setPageNumber] = useState(initialPage && pageNumbers.includes(initialPage) ? initialPage : pageNumbers[0]);
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(initialRow);
   const [zoom, setZoom] = useState<"fit" | 0.75 | 1 | 1.25>("fit");
-  const queueDrivenReview = initialRow !== null;
+  const queueDrivenReview = initialPage !== undefined && initialRow !== null;
 
   useEffect(() => {
     setPageNumber(initialPage && pageNumbers.includes(initialPage) ? initialPage : pageNumbers[0]);
@@ -68,7 +68,9 @@ export default function ReviewWorkspace({ mode, pages, scopedPages, previews, in
     moveToNextReviewItem(pageNumber, row.rowIdx, false);
   };
 
-  const skipForNow = (row: ReviewRow) => moveToNextReviewItem(pageNumber, row.rowIdx, true);
+  const skipForNow = (row: ReviewRow) => {
+    moveToNextReviewItem(pageNumber, row.rowIdx, true);
+  };
 
   useEffect(() => {
     if (selectedRowIndex !== null && !rows.some((row) => row.rowIdx === selectedRowIndex)) setSelectedRowIndex(null);
