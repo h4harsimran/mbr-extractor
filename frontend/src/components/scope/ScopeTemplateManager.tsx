@@ -18,6 +18,7 @@ export default function ScopeTemplateManager({ currentScope, onLoadScope }: Prop
   const [name, setName] = useState("");
   const [selectedId, setSelectedId] = useState<string>(loaded.templates[0]?.template_id ?? builtInScopeTemplates[0]?.template_id ?? "");
   const selectedTemplate = [...templates, ...builtInScopeTemplates].find((template) => template.template_id === selectedId) ?? null;
+  const selectedIsBuiltIn = selectedTemplate?.template_id.startsWith("builtin_") ?? false;
 
   useEffect(() => {
     const error = saveScopedTemplates(templates);
@@ -35,53 +36,64 @@ export default function ScopeTemplateManager({ currentScope, onLoadScope }: Prop
     setTemplates((prev) => upsertTemplate(prev, template));
     setSelectedId(template.template_id);
     setName("");
-    setMessage("Template saved locally in this browser.");
+    setMessage("Template saved in this browser.");
   };
 
   const rename = () => {
-    if (!selectedTemplate || selectedTemplate.template_id.startsWith("builtin_")) return;
+    if (!selectedTemplate || selectedIsBuiltIn) return;
     const next = window.prompt("New template name", selectedTemplate.name)?.trim();
     if (!next) return;
     setTemplates((prev) => prev.map((template) => template.template_id === selectedTemplate.template_id ? { ...template, name: next, updated_at: new Date().toISOString() } : template));
   };
 
   const remove = () => {
-    if (!selectedTemplate || selectedTemplate.template_id.startsWith("builtin_")) return;
+    if (!selectedTemplate || selectedIsBuiltIn) return;
     setTemplates((prev) => prev.filter((template) => template.template_id !== selectedTemplate.template_id));
-    setMessage("Template deleted from local browser storage.");
+    setMessage("Template deleted from this browser.");
   };
 
   return (
     <div className="template-panel" aria-label="Scoped extraction templates">
-      <div className="section-header compact"><span className="step-badge subtle">B</span><div><h3 className="section-title">Or load template</h3><p className="section-description">Use a saved local template or a built-in starter instead of building from pasted text.</p></div></div>
-      <p className="helper-text">Templates are stored only in browser localStorage. Loaded or imported templates must be approved before extraction starts.</p>
+      <div className="section-header compact">
+        <span className="step-badge subtle">or</span>
+        <div>
+          <h3 className="section-title">Choose a template</h3>
+          <p className="section-description">Start from saved or built-in fields instead of pasting a new list.</p>
+        </div>
+      </div>
       {message && <div className="callout callout-info">{message}</div>}
       <div className="template-controls">
         <select aria-label="Saved template" className="editable-cell" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-          <optgroup label="Local templates">
+          <optgroup label="Saved in this browser">
             {templates.map((template) => <option key={template.template_id} value={template.template_id}>{template.name}</option>)}
           </optgroup>
           <optgroup label="Built-in starters">
             {builtInScopeTemplates.map((template) => <option key={template.template_id} value={template.template_id}>{template.name}</option>)}
           </optgroup>
         </select>
-        <button className="btn btn-secondary" disabled={!selectedTemplate} onClick={() => selectedTemplate && onLoadScope(selectedTemplate.scope)}>Load into current scope</button>
-        <button className="btn btn-secondary" disabled={!selectedTemplate || selectedTemplate.template_id.startsWith("builtin_")} onClick={rename}>Rename</button>
-        <button className="btn btn-secondary" disabled={!selectedTemplate || selectedTemplate.template_id.startsWith("builtin_")} onClick={remove}>Delete</button>
+        <button className="btn btn-secondary" disabled={!selectedTemplate} onClick={() => selectedTemplate && onLoadScope(selectedTemplate.scope)}>Use template</button>
       </div>
-      <div className="template-controls template-controls-spaced">
-        <input aria-label="Template name" className="editable-cell" placeholder="Template name" value={name} onChange={(event) => setName(event.target.value)} />
-        <button className="btn btn-success" disabled={!currentScope || !validateScopedExtractionPlan(currentScope).valid} onClick={saveCurrent}>Save current scope as template</button>
-      </div>
-      <ScopeTemplateImportExport
-        templates={templates}
-        selectedTemplate={selectedTemplate && !selectedTemplate.template_id.startsWith("builtin_") ? selectedTemplate : null}
-        onImport={(imported, summary) => {
-          const resolved = resolveTemplateImportCollisions(imported, templates);
-          setTemplates((prev) => resolved.templates.reduce((next, template) => upsertTemplate(next, template), prev));
-          setMessage(`Import summary: ${resolved.imported} imported, ${summary.skipped} skipped, ${resolved.renamed} renamed.`);
-        }}
-      />
+      <details className="advanced-details template-management-details">
+        <summary>Manage templates</summary>
+        <p className="helper-text">Save, rename, import, or export reusable field lists for this browser.</p>
+        <div className="template-controls">
+          <button className="btn btn-secondary" disabled={!selectedTemplate || selectedIsBuiltIn} onClick={rename}>Rename saved template</button>
+          <button className="btn btn-secondary" disabled={!selectedTemplate || selectedIsBuiltIn} onClick={remove}>Delete saved template</button>
+        </div>
+        <div className="template-controls template-controls-spaced">
+          <input aria-label="Template name" className="editable-cell" placeholder="Template name" value={name} onChange={(event) => setName(event.target.value)} />
+          <button className="btn btn-success" disabled={!currentScope || !validateScopedExtractionPlan(currentScope).valid} onClick={saveCurrent}>Save current scope</button>
+        </div>
+        <ScopeTemplateImportExport
+          templates={templates}
+          selectedTemplate={selectedTemplate && !selectedIsBuiltIn ? selectedTemplate : null}
+          onImport={(imported, summary) => {
+            const resolved = resolveTemplateImportCollisions(imported, templates);
+            setTemplates((prev) => resolved.templates.reduce((next, template) => upsertTemplate(next, template), prev));
+            setMessage(`Import summary: ${resolved.imported} imported, ${summary.skipped} skipped, ${resolved.renamed} renamed.`);
+          }}
+        />
+      </details>
     </div>
   );
 }

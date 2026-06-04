@@ -1578,3 +1578,43 @@ input:focus-visible {
     flex: 1 1 100%;
   }
 }
+
+.preflight-details {
+  margin-top: 12px;
+}
+
+.preflight-details p {
+  margin: 8px 0 0;
+}
+
+.template-management-details {
+  margin-top: 14px;
+}
+
+.compact-scope-heading {
+  margin-bottom: 10px;
+}
+
+.compact-scope-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.compact-scope-summary span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid var(--border-glass);
+  border-radius: 999px;
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.compact-scope-details[open] {
+  margin-top: 12px;
+}

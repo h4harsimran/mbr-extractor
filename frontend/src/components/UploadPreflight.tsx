@@ -67,12 +67,17 @@ export default function UploadPreflight({
         <p className="eyebrow">Ready to extract</p>
         <h2 className="progress-title">Review extraction setup</h2>
         <p className="section-description">
-          Full extraction is the default path. Choose scoped extraction only when you want to limit results to an approved parameter list.
+          Choose how much to extract, provide a scope when needed, then review the fields before starting.
         </p>
       </div>
 
       <section className="section-card" aria-labelledby="file-summary-heading">
-        <StepHeader step={1} title="File summary" description="Confirm the document and extraction estimate before API processing starts." />
+        <div className="section-header">
+          <div>
+            <h3 className="section-title" id="file-summary-heading">File summary</h3>
+            <p className="section-description">Confirm this is the document you want to process.</p>
+          </div>
+        </div>
         <div className="metadata-grid compact-metadata-grid" aria-label="PDF summary">
           <div className="metadata-item metadata-item-wide">
             <span className="metadata-label">File</span>
@@ -86,46 +91,48 @@ export default function UploadPreflight({
             <span className="metadata-label">Pages</span>
             <span className="metadata-value">{preflight.pageCount}</span>
           </div>
-          <div className="metadata-item">
-            <span className="metadata-label">Estimated calls</span>
-            <span className="metadata-value">{estimatedCalls}</span>
-          </div>
         </div>
+        <details className="advanced-details preflight-details">
+          <summary>Show processing estimate</summary>
+          <p>Estimated API calls: <strong>{estimatedCalls}</strong>. The estimate includes one call per page{extractionMode === "scoped" ? " plus one setup call for your reviewed scope" : ""}.</p>
+        </details>
       </section>
 
       <section className="section-card" aria-labelledby="mode-heading">
-        <StepHeader step={2} title="Extraction mode" description="Use full extraction for the fastest setup, or scoped extraction for an advanced, targeted run." />
+        <StepHeader step={1} title="Choose mode" description="Pick full extraction for everything, or scoped extraction when you only need selected fields." />
         <ScopeModeSelector mode={extractionMode} onChange={onModeChange} />
       </section>
 
       {extractionMode === "scoped" && (
         <section className="section-card scoped-setup" aria-labelledby="scoped-setup-heading">
-          <StepHeader step={3} title="Scoped setup" description="Create or load a parameter scope, then review and approve it before extraction." />
+          <StepHeader step={2} title="Provide scope" description="Paste the fields you need or choose a template to reuse a saved list." />
           <div className="scoped-setup-grid">
             <div className="scoped-primary-path">
               <ScopeInput rawParameters={rawParameters} documentContext={documentContext} loading={scopeLoading} onRawParametersChange={onRawParametersChange} onDocumentContextChange={onDocumentContextChange} onBuildScope={onBuildScope} />
               {scopeWarnings.map((warning) => <div className="callout callout-warning" key={warning}>{warning}</div>)}
             </div>
             <aside className="scoped-alternative" aria-label="Alternative scoped setup path">
-              <p className="eyebrow">Alternative path</p>
               <ScopeTemplateManager currentScope={scopedPlan} onLoadScope={onLoadTemplateScope} />
             </aside>
           </div>
-          {scopedPlan && (
-            <div className="scope-review-stage">
-              {!validation.valid && <div className="callout callout-error"><strong>Scope validation needs attention.</strong><ul>{validation.errors.map((item) => <li key={item}>{item}</li>)}</ul></div>}
-              <ScopeReview scope={scopedPlan} approved={scopeApproved} validationErrors={validation.errors} onChange={onScopeChange} onApprove={onApproveScope} />
-            </div>
-          )}
         </section>
       )}
 
       <section className="section-card action-section" aria-label="Final extraction action">
-        <StepHeader step={extractionMode === "scoped" ? 4 : 3} title="Start extraction" description="Uploaded PDFs and extracted rows are not stored by this app. Rendered page images are sent to Gemini for extraction only after you start." />
-        <div className="callout callout-info">
-          Limits: {extractionConfig.maxPages} pages, {extractionConfig.maxFileSizeMb} MB, concurrency {extractionConfig.concurrency}. Human review is still required before using extracted data.
-        </div>
-        {extractionMode === "scoped" && !canStart && <p className="helper-text">Build or load a valid scope, then approve it to enable scoped extraction.</p>}
+        <StepHeader step={3} title={extractionMode === "scoped" ? "Review scope and start" : "Review and start"} description={extractionMode === "scoped" ? "Check the generated field list, approve it, then extract only those fields." : "Start when this file and mode look right."} />
+        {extractionMode === "scoped" && scopedPlan && (
+          <div className="scope-review-stage">
+            {!validation.valid && <div className="callout callout-error"><strong>Scope needs attention.</strong><ul>{validation.errors.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+            <ScopeReview scope={scopedPlan} approved={scopeApproved} validationErrors={validation.errors} onChange={onScopeChange} onApprove={onApproveScope} />
+          </div>
+        )}
+        {extractionMode === "scoped" && !scopedPlan && <p className="helper-text">Paste parameters or load a template to preview your scoped field list here.</p>}
+        <details className="advanced-details preflight-details">
+          <summary>Show extraction limits</summary>
+          <p>Files can include up to {extractionConfig.maxPages} pages and {extractionConfig.maxFileSizeMb} MB. Human review is still required before using extracted data.</p>
+        </details>
+        <p className="helper-text">Uploaded PDFs and extracted rows are not stored by this app. Page images are sent for extraction only after you start.</p>
+        {extractionMode === "scoped" && !canStart && <p className="helper-text">Approve a valid scope to enable scoped extraction.</p>}
         <div className="action-bar">
           <button className="btn btn-secondary" onClick={onCancel}>Choose another file</button>
           <button className="btn btn-success" disabled={!canStart} onClick={onStart}>{extractionMode === "scoped" ? "Start scoped extraction" : "Start full extraction"}</button>

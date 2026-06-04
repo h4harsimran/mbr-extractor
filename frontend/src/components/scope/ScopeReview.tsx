@@ -62,8 +62,8 @@ export default function ScopeReview({ scope, approved, onChange, onApprove, vali
       <div className="section-header compact">
         <span className="step-badge subtle">C</span>
         <div>
-          <h3 className="section-title">Review generated scope</h3>
-          <p className="section-description">Confirm the display names, IDs, value types, and hints before approving scoped extraction.</p>
+          <h3 className="section-title">Compact scope preview</h3>
+          <p className="section-description">Confirm the field list that will shape your results. Open a field only when you need to edit details.</p>
         </div>
       </div>
       <div className="scope-parameter-list">
@@ -71,45 +71,55 @@ export default function ScopeReview({ scope, approved, onChange, onApprove, vali
           const errors = parameterErrors(parameter, scope.parameters);
           return (
             <article className="scope-review-card" key={`${parameter.parameter_id}-${index}`}>
-              <div className="scope-card-heading">
+              <div className="scope-card-heading compact-scope-heading">
                 <div className="scope-parameter-identity">
-                  <label className="input-label" htmlFor={`scope-display-${index}`}>Display name</label>
-                  <input id={`scope-display-${index}`} aria-label="Parameter name" className="editable-cell scope-primary-input" value={parameter.display_name} onChange={(event) => updateParameter(index, { display_name: event.target.value })} />
-                  <label className="parameter-id-label" htmlFor={`scope-id-${index}`}>Parameter ID</label>
-                  <input id={`scope-id-${index}`} aria-label="Parameter ID" className="editable-cell parameter-id-input" value={parameter.parameter_id} onChange={(event) => updateParameter(index, { parameter_id: event.target.value.trim() })} />
+                  <label className="input-label" htmlFor={`scope-display-${index}`}>Result field</label>
+                  <input id={`scope-display-${index}`} aria-label="Result field" className="editable-cell scope-primary-input" value={parameter.display_name} onChange={(event) => updateParameter(index, { display_name: event.target.value })} />
                 </div>
                 <button className="btn btn-secondary" onClick={() => removeParameter(index)}>Remove</button>
               </div>
 
-              <div className="form-field-group">
-                <label className="input-label" htmlFor={`scope-description-${index}`}>Description</label>
-                <textarea id={`scope-description-${index}`} aria-label="Parameter description" className="editable-cell review-textarea" value={parameter.description} onChange={(event) => updateParameter(index, { description: event.target.value })} />
+              <div className="compact-scope-summary" aria-label={`${parameter.display_name} scope summary`}>
+                <span>{parameter.value_types.length} result type{parameter.value_types.length === 1 ? "" : "s"}</span>
+                <span>{parameter.expected_units.length > 0 ? `Units: ${parameter.expected_units.join(", ")}` : "No expected units"}</span>
+                <span>{parameter.synonyms.length > 0 ? `${parameter.synonyms.length} matching hint${parameter.synonyms.length === 1 ? "" : "s"}` : "No matching hints"}</span>
               </div>
 
-              <div className="scope-field-grid">
+              <details className="advanced-details compact-scope-details">
+                <summary>Edit field details</summary>
                 <div className="form-field-group">
-                  <label className="input-label" htmlFor={`scope-units-${index}`}>Expected units</label>
-                  <textarea id={`scope-units-${index}`} aria-label="Expected units" className="editable-cell review-textarea small" value={parameter.expected_units.join(", ")} onChange={(event) => updateParameter(index, { expected_units: parseList(event.target.value) })} />
+                  <label className="input-label" htmlFor={`scope-description-${index}`}>What to extract</label>
+                  <textarea id={`scope-description-${index}`} aria-label="What to extract" className="editable-cell review-textarea" value={parameter.description} onChange={(event) => updateParameter(index, { description: event.target.value })} />
                 </div>
-                <div className="form-field-group">
-                  <label className="input-label" htmlFor={`scope-synonyms-${index}`}>Synonyms</label>
-                  <textarea id={`scope-synonyms-${index}`} aria-label="Synonyms" className="editable-cell review-textarea small" value={parameter.synonyms.join(", ")} onChange={(event) => updateParameter(index, { synonyms: parseList(event.target.value) })} />
-                </div>
-              </div>
 
-              <fieldset className="value-type-fieldset">
-                <legend>Value types</legend>
-                <div className="checkbox-wrap">
-                  {VALUE_TYPES.map((value) => <label key={value} className="checkbox-pill"><input type="checkbox" checked={parameter.value_types.includes(value)} onChange={(event) => toggleValueType(index, value, event.target.checked)} /> {value}</label>)}
+                <div className="scope-field-grid">
+                  <div className="form-field-group">
+                    <label className="input-label" htmlFor={`scope-units-${index}`}>Expected units</label>
+                    <textarea id={`scope-units-${index}`} aria-label="Expected units" className="editable-cell review-textarea small" value={parameter.expected_units.join(", ")} onChange={(event) => updateParameter(index, { expected_units: parseList(event.target.value) })} />
+                  </div>
+                  <div className="form-field-group">
+                    <label className="input-label" htmlFor={`scope-synonyms-${index}`}>Matching hints</label>
+                    <textarea id={`scope-synonyms-${index}`} aria-label="Matching hints" className="editable-cell review-textarea small" value={parameter.synonyms.join(", ")} onChange={(event) => updateParameter(index, { synonyms: parseList(event.target.value) })} />
+                  </div>
                 </div>
-              </fieldset>
 
-              <details className="advanced-details">
-                <summary>Advanced evidence and review rules</summary>
-                <div><strong>Required evidence:</strong> {parameter.required_evidence.join(", ")}</div>
-                <div><strong>Review rules:</strong> {parameter.needs_review_rules.join(", ") || "None"}</div>
+                <fieldset className="value-type-fieldset">
+                  <legend>Results to capture</legend>
+                  <div className="checkbox-wrap">
+                    {VALUE_TYPES.map((value) => <label key={value} className="checkbox-pill"><input type="checkbox" checked={parameter.value_types.includes(value)} onChange={(event) => toggleValueType(index, value, event.target.checked)} /> {value.replace(/_/g, " ")}</label>)}
+                  </div>
+                </fieldset>
+
+                <details className="advanced-details">
+                  <summary>Show review safeguards</summary>
+                  <div><strong>Evidence shown:</strong> {parameter.required_evidence.join(", ").replace(/_/g, " ")}</div>
+                  <div><strong>Flag for review:</strong> {(parameter.needs_review_rules.join(", ") || "None").replace(/_/g, " ")}</div>
+                  <div className="form-field-group template-controls-spaced">
+                    <label className="parameter-id-label" htmlFor={`scope-id-${index}`}>Stable field ID</label>
+                    <input id={`scope-id-${index}`} aria-label="Stable field ID" className="editable-cell parameter-id-input" value={parameter.parameter_id} onChange={(event) => updateParameter(index, { parameter_id: event.target.value.trim() })} />
+                  </div>
+                </details>
               </details>
-
               {errors.length > 0 && <ul className="callout callout-error scope-error-list" aria-label="Parameter errors">{errors.map((error) => <li key={error}>{error}</li>)}</ul>}
             </article>
           );
@@ -118,8 +128,8 @@ export default function ScopeReview({ scope, approved, onChange, onApprove, vali
       <div className="action-bar scope-approval-bar">
         <button className="btn btn-secondary" onClick={() => onChange({ ...scope, parameters: [...scope.parameters, blankParameter()] })}>Add parameter</button>
         <div className="approval-action">
-          {cannotApprove && <p className="helper-text">Resolve scope errors before approval.</p>}
-          <button className="btn btn-success" disabled={cannotApprove} onClick={onApprove}>{approved ? "Scope approved — ready to start" : "Approve scope and enable extraction"}</button>
+          {cannotApprove && <p className="helper-text">Fix the highlighted fields before approval.</p>}
+          <button className="btn btn-success" disabled={cannotApprove} onClick={onApprove}>{approved ? "Scope approved" : "Approve scope"}</button>
         </div>
       </div>
     </div>

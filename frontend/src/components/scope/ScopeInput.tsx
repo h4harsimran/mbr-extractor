@@ -15,7 +15,7 @@ export default function ScopeInput({ rawParameters, documentContext, loading, on
         <span className="step-badge subtle">A</span>
         <div>
           <h3 className="section-title">Paste parameters</h3>
-          <p className="section-description">Enter one parameter per line or paste a comma-separated list from your protocol.</p>
+          <p className="section-description">List the fields you want returned in the final results.</p>
         </div>
       </div>
       <div className="form-field-group">
@@ -28,7 +28,7 @@ export default function ScopeInput({ rawParameters, documentContext, loading, on
           onChange={(event) => onRawParametersChange(event.target.value)}
           placeholder={"pH\nTemperature\nDissolved oxygen\nAgitation speed\nHarvest volume"}
         />
-        <p className="helper-text">Required. Scope building uses this list to create reviewable extraction targets; missing parameters are reported once after all pages are compiled, not once per page.</p>
+        <p className="helper-text">Required. The generated scope will follow this list so you can review missing fields once after extraction.</p>
       </div>
       <div className="form-field-group">
         <label className="input-label" htmlFor="scope-context">Optional context</label>
@@ -40,14 +40,14 @@ export default function ScopeInput({ rawParameters, documentContext, loading, on
           onChange={(event) => onDocumentContextChange(event.target.value)}
           placeholder="Cell therapy manufacturing batch record; bioreactor section; units usually °C and %."
         />
-        <p className="helper-text">Optional. Add document type, section names, or expected units to improve generated names and synonyms.</p>
+        <p className="helper-text">Optional. Add document type, section names, or expected units to make the field list easier to review.</p>
       </div>
       <div className="action-bar compact-action-bar">
         <button className="btn btn-success" disabled={disabled} onClick={onBuildScope}>
-          {loading ? "Building scope…" : "Build extraction scope"}
+          {loading ? "Building scope…" : "Generate scope preview"}
         </button>
       </div>
-      {disabled && !loading && <p className="helper-text">Add at least one parameter to build a scope.</p>}
+      {disabled && !loading && <p className="helper-text">Add at least one field to generate a scope preview.</p>}
     </div>
   );
 }
