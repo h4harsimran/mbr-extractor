@@ -13,10 +13,16 @@ export default function ReviewQueue({ mode, pages, scopedPages, onSelect }: Prop
     : pages.flatMap((page) => page.rows.map((row, rowIndex) => ({ pageNumber: page.page_number, rowIndex, label: row.parameter_label ?? "Unnamed parameter", reason: row.warnings?.map((w) => w.message || w.code).join("; ") || row.review_reason || "Needs review", include: row.needs_review }))).filter((item) => item.include);
   const grouped = items.reduce<Record<number, typeof items>>((acc, item) => ({ ...acc, [item.pageNumber]: [...(acc[item.pageNumber] ?? []), item] }), {});
   return (
-    <section className="scope-panel" aria-label="Review queue">
-      <h3 className="scope-title">Review queue ({items.length})</h3>
-      {items.length === 0 ? <p className="upload-hint">No rows currently need review.</p> : Object.entries(grouped).map(([page, group]) => (
-        <div key={page} className="scope-review-card">
+    <section className="section-card review-queue-panel" aria-label="Review queue">
+      <div className="section-header compact">
+        <span className="step-badge subtle">RQ</span>
+        <div>
+          <h3 className="section-title">Review queue ({items.length})</h3>
+          <p className="section-description">Rows that need attention before downstream use.</p>
+        </div>
+      </div>
+      {items.length === 0 ? <div className="empty-state">No rows currently need review.</div> : Object.entries(grouped).map(([page, group]) => (
+        <div key={page} className="scope-review-card review-queue-group">
           <strong>Page {page}</strong>
           {group.map((item) => (
             <button key={`${item.pageNumber}-${item.rowIndex}`} className="review-row-card" onClick={() => onSelect(item.pageNumber, item.rowIndex)}>

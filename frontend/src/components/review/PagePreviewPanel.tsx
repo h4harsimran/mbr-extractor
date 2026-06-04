@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { PagePreview } from "../../types";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function PagePreviewPanel({ preview, pageNumber, pageNumbers, zoom, onZoomChange, onPageChange }: Props) {
+  const previewStyle = preview && zoom !== "fit" ? ({ width: `${preview.width * zoom}px` } as CSSProperties) : undefined;
   return (
     <section className="review-preview-panel" aria-label="PDF page preview">
       <div className="review-toolbar">
@@ -22,7 +24,7 @@ export default function PagePreviewPanel({ preview, pageNumber, pageNumbers, zoo
       </div>
       <p className="upload-hint">Image highlighting requires bounding-box extraction and is not enabled yet.</p>
       <div className="page-preview-frame">
-        {preview ? <img src={preview.dataUrl} alt={`Rendered PDF page ${pageNumber}`} style={{ width: zoom === "fit" ? "100%" : preview.width * zoom, maxWidth: zoom === "fit" ? "100%" : "none" }} /> : <div className="empty-state">Page preview is unavailable after reload. Choose the PDF again to restore page images.</div>}
+        {preview ? <img className={zoom === "fit" ? "page-preview-image fit" : "page-preview-image fixed"} src={preview.dataUrl} alt={`Rendered PDF page ${pageNumber}`} style={previewStyle} /> : <div className="empty-state">Page preview is unavailable after reload. Choose the PDF again to restore page images.</div>}
       </div>
     </section>
   );

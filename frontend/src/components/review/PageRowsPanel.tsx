@@ -72,7 +72,7 @@ export default function PageRowsPanel({ mode, pageNumber, rows, selectedRowIndex
           <div className="scope-review-meta"><strong>Confidence:</strong> {(selected.extraction_confidence * 100).toFixed(0)}%</div>
           <div className="scope-review-meta"><strong>Review reasons/warnings:</strong> {selected.kind === "full" ? selected.warnings?.map((w) => w.message || w.code).join("; ") || selected.review_reason || "None" : selected.review_reasons.join("; ") || "None"}</div>
           {selected.kind === "scoped" && <div className="evidence-box"><strong>Nearby text:</strong><br />{selected.nearby_text || "No nearby text returned."}</div>}
-          <div className="results-actions" style={{ marginTop: 12 }}>
+          <div className="results-actions review-detail-actions">
             <button className="btn btn-success" onClick={() => setReview(false)}>Accept / Clear review</button>
             <button className="btn btn-secondary" onClick={() => setReview(true)}>Mark review needed</button>
             {selected.kind === "scoped" && <button className="btn btn-secondary" onClick={markNotApplicable}>Mark N/A</button>}

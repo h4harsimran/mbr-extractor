@@ -40,8 +40,8 @@ export default function FileUpload({ onFileSelected, error }: FileUploadProps) {
           onChange={(event) => handleFile(event.target.files?.[0])}
         />
       </div>
-      {error && <div className="error-banner" style={{ marginTop: 24 }}>{error}</div>}
-      <p className="upload-hint" style={{ marginTop: 24 }}>
+      {error && <div className="error-banner upload-error">{error}</div>}
+      <p className="upload-hint upload-privacy-note">
         Privacy note: uploaded PDFs stay in your browser, but rendered page images are sent to the Worker and Gemini during extraction.
       </p>
     </div>
