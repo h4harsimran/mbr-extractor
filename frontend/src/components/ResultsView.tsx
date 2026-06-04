@@ -40,10 +40,8 @@ const scopedReviewLabel = (row: FlatScopedRow) => {
 };
 
 export default function ResultsView({ pages, scopedPages, extractionMode, allPages, pagePreviews, filename, failedCount, scopedPlan, onReset, onUpdateRow, onUpdateScopedRow, onRetryPage, onRetryFailed }: ResultsViewProps) {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [viewTab, setViewTab] = useState<ViewTab>("table");
-  const [reviewTarget, setReviewTarget] = useState<{ pageNumber: number; rowIndex: number | null }>({ pageNumber: 1, rowIndex: null });
   const rowsPerPage = 50;
+  const [currentPage, setCurrentPage] = useState(1);
 
   const allRows: FlatRow[] = useMemo(() => pages.flatMap((page) => page.rows.map((row, rowIdx) => ({ ...row, rowIdx, lot_number: page.lot_number }))), [pages]);
   const scopedRows: FlatScopedRow[] = useMemo(() => scopedPages.flatMap((page) => page.scoped_results.map((row, rowIdx) => ({ ...row, rowIdx, page_number: page.page_number, lot_number: page.lot_number }))), [scopedPages]);
@@ -60,6 +58,26 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
   const paginatedScopedRows = scopedRows.slice(startIndex, startIndex + rowsPerPage);
   const failedPages = allPages.filter((page) => page.status === "failed");
 
+  const [viewTab, setViewTab] = useState<ViewTab>(() => reviewCount > 0 ? "queue" : "table");
+  const [hasChosenView, setHasChosenView] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState<{ pageNumber: number; rowIndex: number | null }>({ pageNumber: 1, rowIndex: null });
+  const [selectedScopedParameterId, setSelectedScopedParameterId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (reviewCount === 0 && viewTab === "queue") {
+      setViewTab("table");
+      return;
+    }
+    if (!hasChosenView) {
+      setViewTab(reviewCount > 0 ? "queue" : "table");
+    }
+  }, [hasChosenView, reviewCount, viewTab]);
+
+  const selectView = (tab: ViewTab) => {
+    setHasChosenView(true);
+    setViewTab(tab);
+  };
+
   const handleDownload = () => {
     if (failedCount > 0 && !window.confirm(`${failedCount} page(s) failed. Export only successful pages?`)) return;
     if (extractionMode === "scoped" && !compiledScoped) return;
@@ -69,8 +87,16 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
   };
 
   const openReviewTarget = (pageNumber: number, rowIndex: number) => {
+    setSelectedScopedParameterId(null);
     setReviewTarget({ pageNumber, rowIndex });
+    setHasChosenView(true);
     setViewTab("review");
+  };
+
+  const openScopedParameterDetail = (parameterId: string) => {
+    setSelectedScopedParameterId(parameterId);
+    setHasChosenView(true);
+    setViewTab("table");
   };
 
   return (
@@ -110,16 +136,16 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
       )}
 
       <div className="view-tabs" role="tablist" aria-label="Results views">
-        <button className={`tab-button ${viewTab === "table" ? "active" : ""}`} role="tab" aria-selected={viewTab === "table"} onClick={() => setViewTab("table")}>Table</button>
-        <button className={`tab-button ${viewTab === "review" ? "active" : ""}`} role="tab" aria-selected={viewTab === "review"} onClick={() => setViewTab("review")}>Side-by-side review</button>
-        <button className={`tab-button ${viewTab === "queue" ? "active" : ""}`} role="tab" aria-selected={viewTab === "queue"} onClick={() => setViewTab("queue")}>Review queue ({reviewCount})</button>
+        <button className={`tab-button ${viewTab === "queue" ? "active" : ""}`} role="tab" aria-selected={viewTab === "queue"} onClick={() => selectView("queue")}>Review queue ({reviewCount})</button>
+        <button className={`tab-button ${viewTab === "table" ? "active" : ""}`} role="tab" aria-selected={viewTab === "table"} onClick={() => selectView("table")}>Results table</button>
+        <button className={`tab-button ${viewTab === "review" ? "active" : ""}`} role="tab" aria-selected={viewTab === "review"} onClick={() => selectView("review")}>Side-by-side review</button>
       </div>
 
-      {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} compiledScoped={compiledScoped} onSelect={openReviewTarget} onSelectParameter={() => setViewTab("table")} />}
+      {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} compiledScoped={compiledScoped} onSelect={openReviewTarget} onSelectParameter={openScopedParameterDetail} />}
       {viewTab === "review" && <ReviewWorkspace mode={extractionMode} pages={pages} scopedPages={scopedPages} previews={pagePreviews} initialPage={reviewTarget.pageNumber} initialRow={reviewTarget.rowIndex} onUpdateFullRow={onUpdateRow} onUpdateScopedRow={onUpdateScopedRow} onRetryPage={onRetryPage} />}
       {viewTab === "table" && (extractionMode === "scoped" ? (
         <>
-          <ScopedExtractionSummary pages={scopedPages} compiled={compiledScoped} />
+          <ScopedExtractionSummary pages={scopedPages} compiled={compiledScoped} focusedParameterId={selectedScopedParameterId} />
           <div className="data-table-wrapper"><table className="data-table"><thead><tr><th>Page</th><th>Parameter</th><th>Target</th><th>Actual</th><th>Units</th><th>Source</th><th>Conf.</th><th>Review</th></tr></thead><tbody>{paginatedScopedRows.map((row) => <tr key={`${row.page_number}-${row.parameter_id}-${row.rowIdx}`}><td>{row.page_number}</td><td>{row.display_name}</td><td><EditableCell value={row.target_value ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "target_value", v)} /></td><td><EditableCell value={row.actual_value ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "actual_value", v)} /></td><td><EditableCell value={row.units ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "units", v)} /></td><td><EditableCell value={row.source_label ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "source_label", v)} /></td><td><span className="confidence-bar"><span className={`confidence-fill ${confidenceClass(row.extraction_confidence)}`} style={{ width: `${row.extraction_confidence * 100}%` }} /></span>{(row.extraction_confidence * 100).toFixed(0)}%</td><td>{row.needs_review ? <button className="badge badge-warning" onClick={() => onUpdateScopedRow(row.page_number, row.rowIdx, "needs_review", false)} title={row.review_reasons.join(", ")}>{scopedReviewLabel(row)}</button> : <button className="badge badge-success" onClick={() => onUpdateScopedRow(row.page_number, row.rowIdx, "needs_review", true)}>{scopedReviewLabel(row)}</button>}</td></tr>)}</tbody></table></div>
         </>
       ) : (
