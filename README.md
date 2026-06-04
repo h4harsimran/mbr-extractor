@@ -244,12 +244,26 @@ CSV values beginning with `=`, `+`, `-`, `@`, tab, or carriage return are prefix
 
 ### Cloudflare Worker
 
+Use separate Wrangler config files so preview deployments can merge safely without changing the production Worker target:
+
+- Production Worker: `worker/wrangler.toml` deploys `mbr-extractor-api` and allows `https://mbr-extractor-frontend.pages.dev`.
+- Dev/preview Worker: `worker/wrangler.preview.toml` deploys `mbr-extractor` and allows `https://dev.mbr-extractor-frontend.pages.dev`.
+
+Production deploy:
+
 ```bash
 npm run deploy --prefix worker
 npx wrangler secret put GEMINI_API_KEY --cwd worker
 ```
 
-Set production `ALLOWED_ORIGINS` to exact Pages origins. Keep `DEBUG_RAW_MODEL_OUTPUT=false`.
+Dev/preview deploy:
+
+```bash
+npx wrangler deploy --config worker/wrangler.preview.toml
+npx wrangler secret put GEMINI_API_KEY --config worker/wrangler.preview.toml
+```
+
+Do not put secrets in either Wrangler config file. Set production `ALLOWED_ORIGINS` to exact Pages origins and keep `DEBUG_RAW_MODEL_OUTPUT=false`.
 
 Recommended manual Cloudflare dashboard step: add a WAF/rate-limit rule for `POST /api/extract-page` to limit excessive per-IP requests and protect Gemini spend.
 
