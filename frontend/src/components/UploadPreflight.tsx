@@ -105,15 +105,11 @@ export default function UploadPreflight({
 
       {extractionMode === "scoped" && (
         <section className="section-card scoped-setup" aria-labelledby="scoped-setup-heading">
-          <StepHeader step={2} title="Provide scope" description="Paste the fields you need or choose a template to reuse a saved list." />
-          <div className="scoped-setup-grid">
-            <div className="scoped-primary-path">
-              <ScopeInput rawParameters={rawParameters} documentContext={documentContext} loading={scopeLoading} onRawParametersChange={onRawParametersChange} onDocumentContextChange={onDocumentContextChange} onBuildScope={onBuildScope} />
-              {scopeWarnings.map((warning) => <div className="callout callout-warning" key={warning}>{warning}</div>)}
-            </div>
-            <aside className="scoped-alternative" aria-label="Alternative scoped setup path">
-              <ScopeTemplateManager currentScope={scopedPlan} onLoadScope={onLoadTemplateScope} />
-            </aside>
+          <StepHeader step={2} title="Provide scope" description="Paste the fields you need, then optionally load a saved template or starter example." />
+          <div className="scoped-setup-stack">
+            <ScopeInput rawParameters={rawParameters} documentContext={documentContext} loading={scopeLoading} onRawParametersChange={onRawParametersChange} onDocumentContextChange={onDocumentContextChange} onBuildScope={onBuildScope} />
+            {scopeWarnings.map((warning) => <div className="callout callout-warning" key={warning}>{warning}</div>)}
+            <ScopeTemplateManager currentScope={scopedPlan} onLoadScope={onLoadTemplateScope} />
           </div>
         </section>
       )}
