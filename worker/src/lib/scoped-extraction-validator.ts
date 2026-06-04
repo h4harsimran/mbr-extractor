@@ -11,7 +11,8 @@ const nullableString = z.union([z.string(), z.null(), z.undefined()]).transform(
   return trimmed.length === 0 ? null : trimmed.slice(0, 1000);
 });
 
-const confidenceSchema = z.union([z.number(), z.string()]).transform((value) => {
+const confidenceSchema = z.union([z.number(), z.string(), z.undefined()]).transform((value) => {
+  if (value === undefined) return 0;
   const numberValue = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(numberValue)) return 0;
   if (numberValue > 1 && numberValue <= 100) return numberValue / 100;
@@ -21,8 +22,7 @@ const confidenceSchema = z.union([z.number(), z.string()]).transform((value) => 
 const ScopedResultSchema = z
   .object({
     parameter_id: z.string().trim().min(1).max(80),
-    display_name: z.string().trim().min(1).max(120),
-    matched: z.boolean().default(false),
+    display_name: z.string().trim().min(1).max(120).optional(),
     target_value: nullableString.default(null),
     actual_value: nullableString.default(null),
     units: nullableString.default(null),
@@ -44,7 +44,9 @@ const ScopedPageExtractionSchema = z
   .object({
     page_number: z.number().int().positive(),
     lot_number: nullableString.default(null),
-    scoped_results: z.array(ScopedResultSchema).default([]),
+    matches: z.array(z.unknown()).optional(),
+    scoped_results: z.array(z.unknown()).optional(),
+    page_warnings: z.array(z.string().trim().min(1).max(80)).default([]),
   })
   .strip();
 
@@ -55,26 +57,12 @@ export interface ScopedValidationResult {
   raw_text: string | null;
 }
 
-function missingResult(parameter: ScopedExtractionPlan["parameters"][number]): ScopedExtractionResult {
-  return {
-    parameter_id: parameter.parameter_id,
-    display_name: parameter.display_name,
-    matched: false,
-    target_value: null,
-    actual_value: null,
-    units: null,
-    source_label: null,
-    nearby_text: null,
-    comments: null,
-    performed_by_initials: null,
-    performed_date: null,
-    verified_by_initials: null,
-    verified_date: null,
-    extraction_confidence: 0,
-    needs_review: true,
-    review_reasons: ["PARAMETER_NOT_FOUND_ON_PAGE"],
-    review_status: "open",
-  };
+function addWarning(warnings: string[], warning: string): void {
+  if (!warnings.includes(warning)) warnings.push(warning);
+}
+
+function normalizeReviewReasons(reasons: string[]): string[] {
+  return Array.from(new Set(reasons.map((reason) => reason.trim()).filter(Boolean)));
 }
 
 export function validateScopedPageResponse(
@@ -89,66 +77,65 @@ export function validateScopedPageResponse(
     return { valid: false, errors: ["invalid model JSON"], scoped_page_extraction: null, raw_text: rawText };
   }
 
-  if (typeof data === "object" && data !== null && !Array.isArray(data)) {
-    const obj = data as { scoped_results?: unknown };
-    if (Array.isArray(obj.scoped_results) && obj.scoped_results.length > MAX_SCOPED_RESULTS_PER_PAGE) {
-      obj.scoped_results = obj.scoped_results.slice(0, MAX_SCOPED_RESULTS_PER_PAGE);
-    }
-  }
-
   const parsed = ScopedPageExtractionSchema.safeParse(data);
   if (!parsed.success) {
     return { valid: false, errors: ["model schema mismatch"], scoped_page_extraction: null, raw_text: rawText };
   }
 
+  const pageWarnings = [...parsed.data.page_warnings];
   const modelPageMismatch = parsed.data.page_number !== pageNumber;
-  const scopedParameterIds = new Set(scopedPlan.parameters.map((parameter) => parameter.parameter_id));
-  const byId = new Map(
-    parsed.data.scoped_results
-      .filter((result) => scopedParameterIds.has(result.parameter_id))
-      .map((result) => [result.parameter_id, result])
-  );
-  const scoped_results = scopedPlan.parameters.map((parameter) => {
-    const found = byId.get(parameter.parameter_id);
-    if (!found) {
-      const missing = missingResult(parameter);
-      if (modelPageMismatch) missing.review_reasons.push("PAGE_NUMBER_MISMATCH");
-      return missing;
+  if (modelPageMismatch) addWarning(pageWarnings, "PAGE_NUMBER_MISMATCH");
+
+  const scopedParameters = new Map(scopedPlan.parameters.map((parameter) => [parameter.parameter_id, parameter]));
+  const rawMatches = (parsed.data.matches ?? parsed.data.scoped_results ?? []).slice(0, MAX_SCOPED_RESULTS_PER_PAGE);
+  if ((parsed.data.matches ?? parsed.data.scoped_results ?? []).length > MAX_SCOPED_RESULTS_PER_PAGE) addWarning(pageWarnings, "EXCESS_SCOPED_MATCHES_TRUNCATED");
+
+  const scoped_results: ScopedExtractionResult[] = [];
+  for (const rawMatch of rawMatches) {
+    const matchResult = ScopedResultSchema.safeParse(rawMatch);
+    if (!matchResult.success) {
+      addWarning(pageWarnings, "MALFORMED_MATCH_IGNORED");
+      continue;
     }
 
-    const normalized: ScopedExtractionResult = {
-      ...found,
-      parameter_id: parameter.parameter_id,
-      display_name: parameter.display_name,
-      review_reasons: [...found.review_reasons],
-      review_status: found.review_status,
-    };
-
-    if (!normalized.matched) {
-      normalized.target_value = null;
-      normalized.actual_value = null;
-      normalized.units = null;
-      normalized.source_label = null;
-      normalized.nearby_text = null;
-      normalized.extraction_confidence = 0;
-      if (!normalized.review_reasons.includes("PARAMETER_NOT_FOUND_ON_PAGE")) {
-        normalized.review_reasons.push("PARAMETER_NOT_FOUND_ON_PAGE");
-      }
+    const scopeParameter = scopedParameters.get(matchResult.data.parameter_id);
+    if (!scopeParameter) {
+      addWarning(pageWarnings, "OUT_OF_SCOPE_PARAMETER_IGNORED");
+      continue;
     }
 
-    if (normalized.matched && normalized.actual_value === null && !normalized.review_reasons.includes("MISSING_ACTUAL_VALUE")) {
-      normalized.review_reasons.push("MISSING_ACTUAL_VALUE");
+    const review_reasons = normalizeReviewReasons(matchResult.data.review_reasons);
+    if (matchResult.data.actual_value === null && !review_reasons.includes("MISSING_ACTUAL_VALUE")) {
+      review_reasons.push("MISSING_ACTUAL_VALUE");
     }
-    if (normalized.extraction_confidence < LOW_CONFIDENCE_THRESHOLD && !normalized.review_reasons.includes("LOW_CONFIDENCE")) {
-      normalized.review_reasons.push("LOW_CONFIDENCE");
+    if (matchResult.data.extraction_confidence < LOW_CONFIDENCE_THRESHOLD && !review_reasons.includes("LOW_CONFIDENCE")) {
+      review_reasons.push("LOW_CONFIDENCE");
     }
-    if (modelPageMismatch && !normalized.review_reasons.includes("PAGE_NUMBER_MISMATCH")) {
-      normalized.review_reasons.push("PAGE_NUMBER_MISMATCH");
+    if (modelPageMismatch && !review_reasons.includes("PAGE_NUMBER_MISMATCH")) {
+      review_reasons.push("PAGE_NUMBER_MISMATCH");
     }
-    normalized.needs_review = normalized.needs_review || normalized.review_reasons.length > 0;
-    if (normalized.needs_review && !normalized.review_status) normalized.review_status = "open";
-    return normalized;
-  });
+
+    const needs_review = matchResult.data.needs_review || review_reasons.length > 0;
+    scoped_results.push({
+      parameter_id: scopeParameter.parameter_id,
+      display_name: scopeParameter.display_name,
+      matched: true,
+      target_value: matchResult.data.target_value,
+      actual_value: matchResult.data.actual_value,
+      units: matchResult.data.units,
+      source_label: matchResult.data.source_label,
+      nearby_text: matchResult.data.nearby_text,
+      comments: matchResult.data.comments,
+      performed_by_initials: matchResult.data.performed_by_initials,
+      performed_date: matchResult.data.performed_date,
+      verified_by_initials: matchResult.data.verified_by_initials,
+      verified_date: matchResult.data.verified_date,
+      extraction_confidence: matchResult.data.extraction_confidence,
+      needs_review,
+      review_reasons,
+      review_status: matchResult.data.review_status ?? (needs_review ? "open" : "accepted"),
+    });
+  }
 
   return {
     valid: true,
@@ -157,6 +144,8 @@ export function validateScopedPageResponse(
       page_number: pageNumber,
       lot_number: parsed.data.lot_number,
       scoped_results,
+      matches: scoped_results,
+      page_warnings: pageWarnings,
     },
     raw_text: rawText,
   };

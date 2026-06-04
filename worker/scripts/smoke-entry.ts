@@ -21,12 +21,12 @@ const plan: ScopedExtractionPlan = {
 const scoped = validateScopedPageResponse(JSON.stringify({ page_number: 7, scoped_results: [{ parameter_id: "temperature", display_name: "Wrong", matched: true, actual_value: "37", extraction_confidence: 0.95, review_reasons: [] }, { parameter_id: "extra", display_name: "Extra", matched: true, extraction_confidence: 1 }] }), 3, plan);
 assert.equal(scoped.valid, true);
 assert.equal(scoped.scoped_page_extraction?.page_number, 3);
-assert.deepEqual(scoped.scoped_page_extraction?.scoped_results.map((row) => row.parameter_id), ["temperature", "ph"]);
-for (const row of scoped.scoped_page_extraction?.scoped_results ?? []) {
-  assert.equal(row.needs_review, true);
-  assert.equal(row.review_status, "open");
-  assert.equal(row.review_reasons.includes("PAGE_NUMBER_MISMATCH"), true);
-}
-assert.equal(scoped.scoped_page_extraction?.scoped_results[1].review_reasons.includes("PARAMETER_NOT_FOUND_ON_PAGE"), true);
+assert.deepEqual(scoped.scoped_page_extraction?.scoped_results.map((row) => row.parameter_id), ["temperature"]);
+assert.equal(scoped.scoped_page_extraction?.scoped_results[0].needs_review, true);
+assert.equal(scoped.scoped_page_extraction?.scoped_results[0].review_status, "open");
+assert.equal(scoped.scoped_page_extraction?.scoped_results[0].review_reasons.includes("PAGE_NUMBER_MISMATCH"), true);
+assert.equal(scoped.scoped_page_extraction?.page_warnings?.includes("PAGE_NUMBER_MISMATCH"), true);
+assert.equal(scoped.scoped_page_extraction?.page_warnings?.includes("OUT_OF_SCOPE_PARAMETER_IGNORED"), true);
+assert.equal(scoped.scoped_page_extraction?.scoped_results.some((row) => row.review_reasons.includes("PARAMETER_NOT_FOUND_ON_PAGE")), false);
 
 console.log("worker smoke tests passed");

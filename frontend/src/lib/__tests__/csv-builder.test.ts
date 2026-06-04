@@ -1,5 +1,34 @@
 import { describe, expect, it } from "vitest";
 import { buildCSV, buildScopedCSV, escapeCSV } from "../csv-builder";
+import type { CompiledScopedResult } from "../compile-scoped-results";
+
+const compiled: CompiledScopedResult = {
+  total_matches: 3,
+  not_found_count: 1,
+  needs_review_count: 1,
+  parameters: [
+    {
+      parameter_id: "temperature",
+      display_name: "Temperature",
+      expected_units: ["°C"],
+      synonyms: [],
+      overall_status: "multiple_matches",
+      matches: [
+        { parameter_id: "temperature", display_name: "Temperature", matched: true, target_value: null, actual_value: "37", units: "°C", source_label: "Temp", nearby_text: "first", comments: null, performed_by_initials: null, performed_date: null, verified_by_initials: null, verified_date: null, extraction_confidence: 0.9, needs_review: false, review_status: "accepted", review_reasons: [], page_number: 1, lot_number: "LOT" },
+        { parameter_id: "temperature", display_name: "Temperature", matched: true, target_value: null, actual_value: "38", units: "°C", source_label: "Temp", nearby_text: "second", comments: null, performed_by_initials: null, performed_date: null, verified_by_initials: null, verified_date: null, extraction_confidence: 0.91, needs_review: false, review_status: "accepted", review_reasons: [], page_number: 2, lot_number: "LOT" },
+      ],
+    },
+    { parameter_id: "ph", display_name: "pH", expected_units: [], synonyms: [], overall_status: "not_found", matches: [] },
+    {
+      parameter_id: "formula",
+      display_name: "Formula",
+      expected_units: [],
+      synonyms: [],
+      overall_status: "matched",
+      matches: [{ parameter_id: "formula", display_name: "Formula", matched: true, target_value: null, actual_value: "=1+1", units: null, source_label: "+source", nearby_text: "@nearby", comments: null, performed_by_initials: null, performed_date: null, verified_by_initials: null, verified_date: null, extraction_confidence: 0.8, needs_review: false, review_status: "accepted", review_reasons: [], page_number: 3, lot_number: null }],
+    },
+  ],
+};
 
 describe("CSV escaping", () => {
   it("escapes commas, quotes, and newlines", () => {
@@ -22,9 +51,25 @@ describe("CSV escaping", () => {
     expect(csv).toContain("'=1+1");
   });
 
-  it("includes scoped review_status", () => {
-    const csv = buildScopedCSV([{ page_number: 1, lot_number: null, scoped_results: [{ parameter_id: "ph", display_name: "pH", matched: false, target_value: null, actual_value: null, units: null, source_label: null, nearby_text: null, comments: null, performed_by_initials: null, performed_date: null, verified_by_initials: null, verified_date: null, extraction_confidence: 0, needs_review: false, review_status: "accepted", review_reasons: ["PARAMETER_NOT_FOUND_ON_PAGE"] }] }]);
-    expect(csv.split("\n")[0]).toContain("review_status");
-    expect(csv).toContain("accepted");
+  it("exports missing scoped parameters once only", () => {
+    const csv = buildScopedCSV(compiled);
+    expect(csv.split("\n").filter((line) => line.startsWith("ph,")).length).toBe(1);
+    expect(csv).toContain("ph,pH,not_found");
+    expect(csv).toContain("PARAMETER_NOT_FOUND_IN_DOCUMENT");
+  });
+
+  it("exports matched scoped parameters as match rows in scope order", () => {
+    const rows = buildScopedCSV(compiled).split("\n");
+    expect(rows[1]).toContain("temperature,Temperature,multiple_matches,1");
+    expect(rows[2]).toContain("temperature,Temperature,multiple_matches,2");
+    expect(rows[3]).toContain("ph,pH,not_found");
+    expect(rows[4]).toContain("formula,Formula,matched,3");
+  });
+
+  it("preserves CSV formula protection for scoped exports", () => {
+    const csv = buildScopedCSV(compiled);
+    expect(csv).toContain("'=1+1");
+    expect(csv).toContain("'+source");
+    expect(csv).toContain("'@nearby");
   });
 });

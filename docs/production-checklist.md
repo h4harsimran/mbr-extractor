@@ -57,11 +57,12 @@ In the Cloudflare dashboard, add a rate-limit/WAF rule for `POST /api/extract-pa
 
 ## Final verification additions
 
-- Verify side-by-side review works for both full and scoped modes and communicates that human verification is required.
-- Verify scoped extraction cannot start unless a valid scope is approved.
-- Verify retrying a page replaces that page preview in memory and reset clears all previews.
+- Verify side-by-side review works for both full and scoped modes, scoped mode shows only page-level matches or an empty page state, and the UI communicates that human verification is required.
+- Verify scoped extraction cannot start unless a valid scope is approved; final by-parameter results preserve scope order and report each missing parameter once at document level.
+- Verify retrying a page replaces that page preview and scoped matches for that page only, and reset clears all previews.
 - Verify session localStorage contains no `pagePreviews`, `dataUrl`, or `base64Image` keys.
 - Verify imported template ID collisions create renamed local templates and never overwrite existing local templates.
+- Verify scoped CSV exports compiled results in scope order and does not emit one missing row per parameter per page.
 - Verify exported templates are handled as sensitive because they can contain process parameter names.
 - Verify Worker logs and client responses do not include raw model output, request JSON bodies, page image base64, provider response bodies, uploaded document text, or API keys. Raw model output should be returned only with `DEBUG_RAW_MODEL_OUTPUT=true`.
 - Verify CI triggers on push to both `dev` and `main`.

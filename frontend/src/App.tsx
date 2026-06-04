@@ -325,6 +325,7 @@ export default function App() {
             onUpdateRow={handleUpdateRow}
             onUpdateScopedRow={handleUpdateScopedRow}
             pagePreviews={pagePreviews}
+            scopedPlan={scopedPlan}
             onRetryPage={(pageNumber) => processPages([pageNumber])}
             onRetryFailed={() => processPages(failedPages.map((page) => page.pageNumber))}
           />

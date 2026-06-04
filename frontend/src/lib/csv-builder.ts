@@ -1,4 +1,5 @@
-import type { PageExtraction, ExtractedRow, ScopedPageExtraction, ScopedExtractionResult } from "../types";
+import type { PageExtraction, ExtractedRow, ScopedPageExtraction } from "../types";
+import type { CompiledScopedResult, ScopedParameterMatchWithPage } from "./compile-scoped-results";
 
 export const CSV_COLUMNS = [
   "page_number",
@@ -22,7 +23,7 @@ export const CSV_COLUMNS = [
 export const SCOPED_CSV_COLUMNS = [
   "parameter_id",
   "parameter_name",
-  "matched",
+  "overall_status",
   "page_number",
   "lot_number",
   "target_value",
@@ -68,16 +69,43 @@ export function buildCSV(pages: PageExtraction[]): string {
   return lines.join("\n");
 }
 
-export function buildScopedCSV(pages: ScopedPageExtraction[]): string {
+function scopedValue(col: (typeof SCOPED_CSV_COLUMNS)[number], row: ScopedParameterMatchWithPage, overallStatus: string): unknown {
+  if (col === "parameter_name") return row.display_name;
+  if (col === "overall_status") return overallStatus;
+  return row[col as keyof ScopedParameterMatchWithPage];
+}
+
+function legacyScopedPagesToCompiled(pages: ScopedPageExtraction[]): CompiledScopedResult {
+  const parameters = pages.flatMap((page) => page.scoped_results.map((match) => ({
+    parameter_id: match.parameter_id,
+    display_name: match.display_name,
+    expected_units: [],
+    synonyms: [],
+    matches: [{ ...match, page_number: page.page_number, lot_number: page.lot_number }],
+    overall_status: match.needs_review ? "needs_review" as const : "matched" as const,
+  })));
+  return { parameters, total_matches: parameters.length, not_found_count: 0, needs_review_count: parameters.filter((parameter) => parameter.overall_status === "needs_review").length };
+}
+
+export function buildScopedCSV(input: CompiledScopedResult | ScopedPageExtraction[]): string {
+  const compiled = Array.isArray(input) ? legacyScopedPagesToCompiled(input) : input;
   const lines = [SCOPED_CSV_COLUMNS.join(",")];
-  for (const page of pages) {
-    for (const row of page.scoped_results) {
+  for (const parameter of compiled.parameters) {
+    if (parameter.matches.length === 0) {
       const values = SCOPED_CSV_COLUMNS.map((col) => {
-        if (col === "page_number") return escapeCSV(page.page_number);
-        if (col === "lot_number") return escapeCSV(page.lot_number);
-        if (col === "parameter_name") return escapeCSV(row.display_name);
-        return escapeCSV(row[col as keyof ScopedExtractionResult]);
+        if (col === "parameter_id") return escapeCSV(parameter.parameter_id);
+        if (col === "parameter_name") return escapeCSV(parameter.display_name);
+        if (col === "overall_status") return escapeCSV("not_found");
+        if (col === "needs_review") return escapeCSV(true);
+        if (col === "review_reasons") return escapeCSV(["PARAMETER_NOT_FOUND_IN_DOCUMENT"]);
+        return escapeCSV(null);
       });
+      lines.push(values.join(","));
+      continue;
+    }
+
+    for (const match of parameter.matches) {
+      const values = SCOPED_CSV_COLUMNS.map((col) => escapeCSV(scopedValue(col, match, parameter.overall_status)));
       lines.push(values.join(","));
     }
   }

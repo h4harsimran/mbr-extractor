@@ -10,7 +10,7 @@ export type WarningCode =
   | "EXCESS_ROWS";
 
 export type ScopedReviewReason =
-  | "PARAMETER_NOT_FOUND_ON_PAGE"
+  | "PARAMETER_NOT_FOUND_IN_DOCUMENT"
   | "MISSING_ACTUAL_VALUE"
   | "UNIT_MISMATCH"
   | "LOW_CONFIDENCE"
@@ -53,7 +53,7 @@ export type ReviewStatus = "open" | "accepted" | "not_applicable";
 export interface ScopedExtractionResult {
   parameter_id: string;
   display_name: string;
-  matched: boolean;
+  matched?: boolean;
   target_value: string | null;
   actual_value: string | null;
   units: string | null;
@@ -75,6 +75,8 @@ export interface ScopedPageExtraction {
   page_number: number;
   lot_number: string | null;
   scoped_results: ScopedExtractionResult[];
+  matches?: ScopedExtractionResult[];
+  page_warnings?: string[];
 }
 
 export interface ValidationResult {

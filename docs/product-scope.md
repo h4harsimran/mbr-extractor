@@ -6,9 +6,9 @@ MBR Extractor is a lightweight AI-assisted extraction tool for Master Batch Reco
 
 - Browser PDF upload and page rendering.
 - Full per-page AI extraction through the Worker.
-- Scoped Extraction: user-provided parameter lists are converted into a validated, reviewed `ScopedExtractionPlan`, then page extraction returns only requested scoped parameters.
+- Scoped Extraction: user-provided parameter lists are converted into a validated, reviewed `ScopedExtractionPlan`; page extraction returns only scoped parameter matches found or ambiguously found on each page.
 - Request limits that protect API cost, including scoped input length and parameter-count limits.
-- Zod validation, normalization, review warnings, missing scoped-result flags, and CSV export.
+- Zod validation, normalization, review warnings, document-level scoped not-found reporting, and compiled CSV export.
 - Simple deployment to Cloudflare Pages and Workers.
 
 ## Out of scope
@@ -26,8 +26,8 @@ This project is not a validated GMP system. Use it as a portfolio/MVP tool with 
 
 - The product now supports a side-by-side review workspace for full and scoped extraction results.
 - The workspace keeps rendered page previews in React memory only; previews are not written to localStorage or server-side storage.
-- Review queue items are derived from existing row review flags: full rows with `needs_review`, and scoped rows with `needs_review` or `matched === false`.
-- Scoped extraction templates are local-only browser aids for reusing parameter plans. They do not add authentication, organizations, database persistence, billing, audit trails, signatures, queues, R2, or SaaS administration.
+- Review queue items are derived from existing row review flags: full rows with `needs_review`, scoped page-level matches with `needs_review`, and compiled scoped parameters that are not found anywhere in the processed pages.
+- Scoped extraction compiles final results in the same order as the approved user scope; missing scoped parameters appear once at document level, not once per page. Scoped extraction templates are local-only browser aids for reusing parameter plans. They do not add authentication, organizations, database persistence, billing, audit trails, signatures, queues, R2, or SaaS administration.
 - Imported templates are treated as untrusted JSON and must pass deterministic frontend validation before loading. Users must still approve loaded templates before scoped extraction starts.
 
 ## Final production-readiness boundaries
