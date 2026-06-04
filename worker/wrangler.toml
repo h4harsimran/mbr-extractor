@@ -1,4 +1,4 @@
-name = "mbr-extractor-api"
+name = "mbr-extractor"
 main = "src/index.ts"
 compatibility_date = "2024-09-25"
 compatibility_flags = ["nodejs_compat"]
@@ -7,16 +7,6 @@ workers_dev = true
 [vars]
 GEMINI_MODEL = "gemini-3-flash-preview"
 ALLOWED_ORIGINS = "https://mbr-extractor-frontend.pages.dev"
-MAX_REQUEST_BYTES = "6291456"
-MAX_IMAGE_BASE64_CHARS = "5500000"
-DEBUG_RAW_MODEL_OUTPUT = "false"
-
-[env.preview]
-workers_dev = true
-
-[env.preview.vars]
-GEMINI_MODEL = "gemini-3-flash-preview"
-ALLOWED_ORIGINS = "https://dev.mbr-extractor-frontend.pages.dev"
 MAX_REQUEST_BYTES = "6291456"
 MAX_IMAGE_BASE64_CHARS = "5500000"
 DEBUG_RAW_MODEL_OUTPUT = "false"
