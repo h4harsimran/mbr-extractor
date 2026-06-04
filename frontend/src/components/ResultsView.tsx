@@ -62,16 +62,21 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
   const [hasChosenView, setHasChosenView] = useState(false);
   const [reviewTarget, setReviewTarget] = useState<{ pageNumber: number; rowIndex: number | null }>({ pageNumber: 1, rowIndex: null });
   const [selectedScopedParameterId, setSelectedScopedParameterId] = useState<string | null>(null);
+  const [documentDetailParameterId, setDocumentDetailParameterId] = useState<string | null>(null);
+  const [documentNotApplicableIds, setDocumentNotApplicableIds] = useState<string[]>([]);
+  const [resolvedReviewActionCount, setResolvedReviewActionCount] = useState(0);
+  const multipleMatchReviewCount = extractionMode === "scoped" ? (compiledScoped?.parameters.filter((parameter) => parameter.overall_status === "multiple_matches").length ?? 0) : 0;
+  const queueReviewCount = Math.max(0, reviewCount - documentNotApplicableIds.length) + multipleMatchReviewCount;
 
   useEffect(() => {
-    if (reviewCount === 0 && viewTab === "queue") {
+    if (queueReviewCount === 0 && viewTab === "queue") {
       setViewTab("table");
       return;
     }
     if (!hasChosenView) {
-      setViewTab(reviewCount > 0 ? "queue" : "table");
+      setViewTab(queueReviewCount > 0 ? "queue" : "table");
     }
-  }, [hasChosenView, reviewCount, viewTab]);
+  }, [hasChosenView, queueReviewCount, viewTab]);
 
   const selectView = (tab: ViewTab) => {
     setHasChosenView(true);
@@ -88,6 +93,7 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
 
   const openReviewTarget = (pageNumber: number, rowIndex: number) => {
     setSelectedScopedParameterId(null);
+    setDocumentDetailParameterId(null);
     setReviewTarget({ pageNumber, rowIndex });
     setHasChosenView(true);
     setViewTab("review");
@@ -95,8 +101,38 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
 
   const openScopedParameterDetail = (parameterId: string) => {
     setSelectedScopedParameterId(parameterId);
+    setDocumentDetailParameterId(parameterId);
     setHasChosenView(true);
-    setViewTab("table");
+    setViewTab("queue");
+  };
+
+  const acceptReviewItem = (pageNumber: number, rowIndex: number) => {
+    if (extractionMode === "scoped") {
+      onUpdateScopedRow(pageNumber, rowIndex, "review_status", "accepted");
+      onUpdateScopedRow(pageNumber, rowIndex, "needs_review", false);
+    } else {
+      onUpdateRow(pageNumber, rowIndex, "needs_review", false);
+    }
+    setResolvedReviewActionCount((count) => count + 1);
+  };
+
+  const markReviewItemNotApplicable = (pageNumber: number, rowIndex: number) => {
+    if (extractionMode !== "scoped") return;
+    onUpdateScopedRow(pageNumber, rowIndex, "review_status", "not_applicable");
+    onUpdateScopedRow(pageNumber, rowIndex, "needs_review", false);
+    setResolvedReviewActionCount((count) => count + 1);
+  };
+
+  const markDocumentParameterNotApplicable = (parameterId: string) => {
+    if (!documentNotApplicableIds.includes(parameterId)) {
+      setDocumentNotApplicableIds((ids) => [...ids, parameterId]);
+      setResolvedReviewActionCount((count) => count + 1);
+    }
+    setDocumentDetailParameterId(null);
+  };
+
+  const leaveDocumentParameterUnresolved = () => {
+    setDocumentDetailParameterId(null);
   };
 
   return (
@@ -136,12 +172,12 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
       )}
 
       <div className="view-tabs" role="tablist" aria-label="Results views">
-        <button className={`tab-button ${viewTab === "queue" ? "active" : ""}`} role="tab" aria-selected={viewTab === "queue"} onClick={() => selectView("queue")}>Review queue ({reviewCount})</button>
+        <button className={`tab-button ${viewTab === "queue" ? "active" : ""}`} role="tab" aria-selected={viewTab === "queue"} onClick={() => selectView("queue")}>Review queue ({queueReviewCount})</button>
         <button className={`tab-button ${viewTab === "table" ? "active" : ""}`} role="tab" aria-selected={viewTab === "table"} onClick={() => selectView("table")}>Results table</button>
         <button className={`tab-button ${viewTab === "review" ? "active" : ""}`} role="tab" aria-selected={viewTab === "review"} onClick={() => selectView("review")}>Side-by-side review</button>
       </div>
 
-      {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} compiledScoped={compiledScoped} onSelect={openReviewTarget} onSelectParameter={openScopedParameterDetail} />}
+      {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} compiledScoped={compiledScoped} documentNotApplicableIds={documentNotApplicableIds} selectedDocumentParameterId={documentDetailParameterId} resolvedReviewCount={resolvedReviewActionCount} onSelect={openReviewTarget} onSelectParameter={openScopedParameterDetail} onAccept={acceptReviewItem} onMarkNotApplicable={markReviewItemNotApplicable} onMarkDocumentNotApplicable={markDocumentParameterNotApplicable} onLeaveDocumentUnresolved={leaveDocumentParameterUnresolved} />}
       {viewTab === "review" && <ReviewWorkspace mode={extractionMode} pages={pages} scopedPages={scopedPages} previews={pagePreviews} initialPage={reviewTarget.pageNumber} initialRow={reviewTarget.rowIndex} onUpdateFullRow={onUpdateRow} onUpdateScopedRow={onUpdateScopedRow} onRetryPage={onRetryPage} />}
       {viewTab === "table" && (extractionMode === "scoped" ? (
         <>
