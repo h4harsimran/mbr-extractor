@@ -3,7 +3,8 @@ import ScopedExtractionSummary from "./scope/ScopedExtractionSummary";
 import ReviewQueue from "./review/ReviewQueue";
 import ReviewWorkspace from "./review/ReviewWorkspace";
 import { buildCSV, buildScopedCSV, downloadCSV } from "../lib/csv-builder";
-import type { ExtractedRow, ExtractionMode, PageExtraction, PagePreview, PageProgress, ReviewStatus, ScopedExtractionResult, ScopedPageExtraction } from "../types";
+import { compileScopedResults } from "../lib/compile-scoped-results";
+import type { ExtractedRow, ExtractionMode, PageExtraction, PagePreview, PageProgress, ReviewStatus, ScopedExtractionPlan, ScopedExtractionResult, ScopedPageExtraction } from "../types";
 
 interface ResultsViewProps {
   pages: PageExtraction[];
@@ -13,6 +14,7 @@ interface ResultsViewProps {
   pagePreviews: PagePreview[];
   filename: string;
   failedCount: number;
+  scopedPlan: ScopedExtractionPlan | null;
   onReset: () => void;
   onUpdateRow: (pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string | boolean | number) => void;
   onUpdateScopedRow: (pageNumber: number, rowIndex: number, field: keyof ScopedExtractionResult, value: string | boolean | number | string[] | ReviewStatus | null) => void;
@@ -33,12 +35,11 @@ function EditableCell({ value, onCommit }: { value: string; onCommit: (value: st
 const confidenceClass = (confidence: number) => confidence >= 0.8 ? "high" : confidence >= 0.6 ? "medium" : "low";
 const scopedReviewLabel = (row: FlatScopedRow) => {
   if (row.review_status === "not_applicable") return "Not applicable";
-  if (!row.matched) return row.review_status === "accepted" ? "Not found — accepted" : "Not found — review open";
   if (row.needs_review) return "Review";
   return row.review_status === "accepted" ? "Accepted" : "OK";
 };
 
-export default function ResultsView({ pages, scopedPages, extractionMode, allPages, pagePreviews, filename, failedCount, onReset, onUpdateRow, onUpdateScopedRow, onRetryPage, onRetryFailed }: ResultsViewProps) {
+export default function ResultsView({ pages, scopedPages, extractionMode, allPages, pagePreviews, filename, failedCount, scopedPlan, onReset, onUpdateRow, onUpdateScopedRow, onRetryPage, onRetryFailed }: ResultsViewProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewTab, setViewTab] = useState<ViewTab>("table");
   const [reviewTarget, setReviewTarget] = useState<{ pageNumber: number; rowIndex: number | null }>({ pageNumber: 1, rowIndex: null });
@@ -46,8 +47,9 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
 
   const allRows: FlatRow[] = useMemo(() => pages.flatMap((page) => page.rows.map((row, rowIdx) => ({ ...row, rowIdx, lot_number: page.lot_number }))), [pages]);
   const scopedRows: FlatScopedRow[] = useMemo(() => scopedPages.flatMap((page) => page.scoped_results.map((row, rowIdx) => ({ ...row, rowIdx, page_number: page.page_number, lot_number: page.lot_number }))), [scopedPages]);
+  const compiledScoped = useMemo(() => scopedPlan ? compileScopedResults(scopedPlan, allPages) : null, [scopedPlan, allPages]);
   const totalRows = extractionMode === "scoped" ? scopedRows.length : allRows.length;
-  const reviewCount = extractionMode === "scoped" ? scopedRows.filter((row) => row.needs_review && row.review_status !== "accepted" && row.review_status !== "not_applicable").length : allRows.filter((row) => row.needs_review).length;
+  const reviewCount = extractionMode === "scoped" ? (compiledScoped?.needs_review_count ?? scopedRows.filter((row) => row.needs_review && row.review_status !== "accepted" && row.review_status !== "not_applicable").length) : allRows.filter((row) => row.needs_review).length;
   const editedCount = extractionMode === "scoped" ? scopedRows.filter((row) => row.edited_by_user).length : allRows.filter((row) => row.edited_by_user).length;
   const avgConfidence = totalRows > 0 ? (extractionMode === "scoped" ? scopedRows.reduce((sum, row) => sum + row.extraction_confidence, 0) : allRows.reduce((sum, row) => sum + row.extraction_confidence, 0)) / totalRows : 0;
   const successfulPages = extractionMode === "scoped" ? scopedPages.length : pages.length;
@@ -60,7 +62,8 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
 
   const handleDownload = () => {
     if (failedCount > 0 && !window.confirm(`${failedCount} page(s) failed. Export only successful pages?`)) return;
-    const csv = extractionMode === "scoped" ? buildScopedCSV(scopedPages) : buildCSV(pages);
+    if (extractionMode === "scoped" && !compiledScoped) return;
+    const csv = extractionMode === "scoped" ? buildScopedCSV(compiledScoped!) : buildCSV(pages);
     const base = filename.replace(/\.pdf$/i, "") || "mbr-extraction";
     downloadCSV(csv, `${base}-${extractionMode === "scoped" ? "scoped" : "extracted"}.csv`);
   };
@@ -112,11 +115,11 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
         <button className={`tab-button ${viewTab === "queue" ? "active" : ""}`} role="tab" aria-selected={viewTab === "queue"} onClick={() => setViewTab("queue")}>Review queue ({reviewCount})</button>
       </div>
 
-      {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} onSelect={openReviewTarget} />}
+      {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} compiledScoped={compiledScoped} onSelect={openReviewTarget} onSelectParameter={() => setViewTab("table")} />}
       {viewTab === "review" && <ReviewWorkspace mode={extractionMode} pages={pages} scopedPages={scopedPages} previews={pagePreviews} initialPage={reviewTarget.pageNumber} initialRow={reviewTarget.rowIndex} onUpdateFullRow={onUpdateRow} onUpdateScopedRow={onUpdateScopedRow} onRetryPage={onRetryPage} />}
       {viewTab === "table" && (extractionMode === "scoped" ? (
         <>
-          <ScopedExtractionSummary pages={scopedPages} />
+          <ScopedExtractionSummary pages={scopedPages} compiled={compiledScoped} />
           <div className="data-table-wrapper"><table className="data-table"><thead><tr><th>Page</th><th>Parameter</th><th>Target</th><th>Actual</th><th>Units</th><th>Source</th><th>Conf.</th><th>Review</th></tr></thead><tbody>{paginatedScopedRows.map((row) => <tr key={`${row.page_number}-${row.parameter_id}-${row.rowIdx}`}><td>{row.page_number}</td><td>{row.display_name}</td><td><EditableCell value={row.target_value ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "target_value", v)} /></td><td><EditableCell value={row.actual_value ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "actual_value", v)} /></td><td><EditableCell value={row.units ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "units", v)} /></td><td><EditableCell value={row.source_label ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "source_label", v)} /></td><td><span className="confidence-bar"><span className={`confidence-fill ${confidenceClass(row.extraction_confidence)}`} style={{ width: `${row.extraction_confidence * 100}%` }} /></span>{(row.extraction_confidence * 100).toFixed(0)}%</td><td>{row.needs_review ? <button className="badge badge-warning" onClick={() => onUpdateScopedRow(row.page_number, row.rowIdx, "needs_review", false)} title={row.review_reasons.join(", ")}>{scopedReviewLabel(row)}</button> : <button className="badge badge-success" onClick={() => onUpdateScopedRow(row.page_number, row.rowIdx, "needs_review", true)}>{scopedReviewLabel(row)}</button>}</td></tr>)}</tbody></table></div>
         </>
       ) : (

@@ -35,9 +35,10 @@ describe("extract scoped page", () => {
     expect(json.scoped_page_extraction.scoped_results[0]).toMatchObject({ parameter_id: "ph", actual_value: "7.1" });
   });
 
-  it("marks missing parameters not matched", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(geminiResponse(JSON.stringify({ page_number: 1, scoped_results: [] })));
+  it("returns an empty matches array when scoped parameters are absent", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(geminiResponse(JSON.stringify({ page_number: 1, matches: [] })));
     const json = await (await request(validBody)).json();
-    expect(json.scoped_page_extraction.scoped_results[0]).toMatchObject({ matched: false, needs_review: true, review_reasons: ["PARAMETER_NOT_FOUND_ON_PAGE"] });
+    expect(json.scoped_page_extraction.scoped_results).toEqual([]);
+    expect(json.scoped_page_extraction.matches).toEqual([]);
   });
 });

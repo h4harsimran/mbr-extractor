@@ -16,7 +16,6 @@ function Editable({ value, onCommit }: { value: string; onCommit: (value: string
 
 function scopedStatus(row: ScopedRow): string {
   if (row.review_status === "not_applicable") return "Not applicable";
-  if (!row.matched) return row.review_status === "accepted" ? "Not found — accepted" : "Not found — review open";
   if (row.needs_review) return "Needs review";
   if (row.review_status === "accepted") return "Accepted";
   return "OK";
@@ -45,14 +44,13 @@ export default function PageRowsPanel({ mode, pageNumber, rows, selectedRowIndex
   };
   const markNotApplicable = () => {
     if (selected?.kind !== "scoped") return;
-    onUpdateScopedRow(pageNumber, selected.rowIdx, "matched", false);
     onUpdateScopedRow(pageNumber, selected.rowIdx, "needs_review", false);
     onUpdateScopedRow(pageNumber, selected.rowIdx, "review_status", "not_applicable");
   };
   return (
     <section className="review-rows-panel" aria-label="Extracted rows for selected page">
       <div className="review-toolbar"><h3>Rows on page {pageNumber}</h3><button className="btn btn-secondary" onClick={() => onRetryPage(pageNumber)}>Retry page</button></div>
-      {rows.length === 0 ? <div className="empty-state">No extracted rows are available for this page.</div> : <div className="review-row-list">
+      {rows.length === 0 ? <div className="empty-state">{mode === "scoped" ? "No scoped parameters found on this page." : "No extracted rows are available for this page."}</div> : <div className="review-row-list">
         {rows.map((row) => (
           <button key={`${row.kind}-${row.rowIdx}`} className={`review-row-card ${selected?.rowIdx === row.rowIdx ? "selected" : ""}`} onClick={() => onSelectRow(row.rowIdx)}>
             <strong>{row.kind === "full" ? row.parameter_label ?? "Unnamed parameter" : row.display_name}</strong>
@@ -64,7 +62,7 @@ export default function PageRowsPanel({ mode, pageNumber, rows, selectedRowIndex
       {selected && (
         <div className="review-detail-card">
           <h4>{selected.kind === "full" ? selected.parameter_label ?? "Unnamed parameter" : selected.display_name}</h4>
-          {mode === "scoped" && selected.kind === "scoped" && <div className="scope-review-meta"><strong>Status:</strong> {scopedStatus(selected)} <br /><strong>Matched:</strong> {selected.matched ? "Yes" : "No"}</div>}
+          {mode === "scoped" && selected.kind === "scoped" && <div className="scope-review-meta"><strong>Status:</strong> {scopedStatus(selected)}</div>}
           <label>Target<Editable value={selected.target_value ?? ""} onCommit={(value) => selected.kind === "full" ? onUpdateFullRow(pageNumber, selected.rowIdx, "target_value", value) : onUpdateScopedRow(pageNumber, selected.rowIdx, "target_value", value)} /></label>
           <label>Actual<Editable value={selected.actual_value ?? ""} onCommit={(value) => selected.kind === "full" ? onUpdateFullRow(pageNumber, selected.rowIdx, "actual_value", value) : onUpdateScopedRow(pageNumber, selected.rowIdx, "actual_value", value)} /></label>
           <label>Units<Editable value={selected.units ?? ""} onCommit={(value) => selected.kind === "full" ? onUpdateFullRow(pageNumber, selected.rowIdx, "units", value) : onUpdateScopedRow(pageNumber, selected.rowIdx, "units", value)} /></label>

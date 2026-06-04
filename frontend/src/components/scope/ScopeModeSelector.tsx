@@ -15,7 +15,7 @@ export default function ScopeModeSelector({ mode, onChange }: { mode: Extraction
         <input type="radio" name="extraction-mode" checked={mode === "scoped"} onChange={() => onChange("scoped")} />
         <span className="mode-option-content">
           <span className="mode-option-title">Scoped extraction</span>
-          <span className="mode-option-description">Advanced: extract only approved parameters from a generated or saved scope.</span>
+          <span className="mode-option-description">Scoped extraction finds requested parameters wherever they appear in the document. Pages without a requested parameter will not create missing rows; after extraction, results are compiled by your scope order and any parameters not found anywhere are shown once.</span>
         </span>
       </label>
     </fieldset>

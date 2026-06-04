@@ -28,7 +28,7 @@ export default function ScopeInput({ rawParameters, documentContext, loading, on
           onChange={(event) => onRawParametersChange(event.target.value)}
           placeholder={"pH\nTemperature\nDissolved oxygen\nAgitation speed\nHarvest volume"}
         />
-        <p className="helper-text">Required. Scope building uses this list to create reviewable extraction targets.</p>
+        <p className="helper-text">Required. Scope building uses this list to create reviewable extraction targets; missing parameters are reported once after all pages are compiled, not once per page.</p>
       </div>
       <div className="form-field-group">
         <label className="input-label" htmlFor="scope-context">Optional context</label>

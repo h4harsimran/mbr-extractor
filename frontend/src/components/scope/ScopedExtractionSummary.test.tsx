@@ -1,28 +1,38 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import ScopedExtractionSummary from "./ScopedExtractionSummary";
+import type { CompiledScopedResult } from "../../lib/compile-scoped-results";
 
 const pages = [{
   page_number: 1,
   lot_number: "LOT",
   scoped_results: [
     { parameter_id: "ph", display_name: "pH", matched: true, target_value: null, actual_value: "7.1", units: null, source_label: "pH", nearby_text: "pH 7.1", comments: null, performed_by_initials: null, performed_date: null, verified_by_initials: null, verified_date: null, extraction_confidence: 0.9, needs_review: false, review_reasons: [] },
-    { parameter_id: "do", display_name: "Dissolved oxygen", matched: false, target_value: null, actual_value: null, units: null, source_label: null, nearby_text: null, comments: null, performed_by_initials: null, performed_date: null, verified_by_initials: null, verified_date: null, extraction_confidence: 0, needs_review: true, review_reasons: ["PARAMETER_NOT_FOUND_ON_PAGE"] },
   ],
-}];
+}, { page_number: 2, lot_number: null, scoped_results: [] }];
+
+const compiled: CompiledScopedResult = {
+  total_matches: 1,
+  not_found_count: 1,
+  needs_review_count: 1,
+  parameters: [
+    { parameter_id: "ph", display_name: "pH", expected_units: [], synonyms: [], overall_status: "matched", matches: [{ ...pages[0].scoped_results[0], page_number: 1, lot_number: "LOT" }] },
+    { parameter_id: "do", display_name: "Dissolved oxygen", expected_units: [], synonyms: [], overall_status: "not_found", matches: [] },
+  ],
+};
 
 describe("ScopedExtractionSummary", () => {
-  it("shows by-parameter view and missing rows in review view", () => {
-    render(<ScopedExtractionSummary pages={pages} />);
-    expect(screen.getByText("pH")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /review only/i }));
-    expect(screen.getByText("Dissolved oxygen")).toBeInTheDocument();
-    expect(screen.queryByText(/^pH$/)).not.toBeInTheDocument();
+  it("shows compiled by-parameter view with document-level not found", () => {
+    render(<ScopedExtractionSummary pages={pages} compiled={compiled} />);
+    expect(screen.getByText("pH", { selector: "h3" })).toBeInTheDocument();
+    expect(screen.getByText("Dissolved oxygen", { selector: "h3" })).toBeInTheDocument();
+    expect(screen.getByText("No match found anywhere in the processed pages.")).toBeInTheDocument();
   });
 
-  it("shows a by-page table", () => {
-    render(<ScopedExtractionSummary pages={pages} />);
+  it("shows a by-page empty state instead of missing rows", () => {
+    render(<ScopedExtractionSummary pages={pages} compiled={compiled} />);
     fireEvent.click(screen.getByRole("button", { name: /by page/i }));
-    expect(screen.getByText("Matched")).toBeInTheDocument();
+    expect(screen.getByText("No scoped parameters found on this page.")).toBeInTheDocument();
+    expect(screen.queryByText("Dissolved oxygen")).not.toBeInTheDocument();
   });
 });

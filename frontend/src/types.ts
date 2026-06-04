@@ -83,7 +83,7 @@ export type ReviewStatus = "open" | "accepted" | "not_applicable";
 export interface ScopedExtractionResult {
   parameter_id: string;
   display_name: string;
-  matched: boolean;
+  matched?: boolean;
   target_value: string | null;
   actual_value: string | null;
   units: string | null;
@@ -105,6 +105,8 @@ export interface ScopedPageExtraction {
   page_number: number;
   lot_number: string | null;
   scoped_results: ScopedExtractionResult[];
+  matches?: ScopedExtractionResult[];
+  page_warnings?: string[];
 }
 
 export interface ScopedExtractionTemplate {

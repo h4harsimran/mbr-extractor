@@ -170,7 +170,7 @@ Success:
 ```
 
 
-Scoped extraction requests set `extraction_mode` to `scoped` and include the approved validated scope object. Scoped responses include `scoped_page_extraction` with one result per requested parameter and explicit `matched: false` rows when a parameter is not found on the page.
+Scoped extraction requests set `extraction_mode` to `scoped` and include the approved validated scope object. Scoped page responses are match-based: `scoped_page_extraction.scoped_results`/`matches` contains only requested parameters that are present, likely present, or ambiguous on that page. Pages that do not contain requested parameters return an empty matches array instead of per-page missing rows. After all pages are processed, the frontend compiles results in the user-defined scope order and reports each parameter not found anywhere once at document level.
 
 Error responses use a sanitized shape and do not expose raw Gemini/provider bodies:
 
@@ -212,7 +212,7 @@ Scoped extraction CSV fields:
 ```text
 parameter_id
 parameter_name
-matched
+overall_status
 page_number
 lot_number
 target_value
@@ -227,11 +227,12 @@ verified_by_initials
 verified_date
 extraction_confidence
 needs_review
+review_status
 review_reasons
 edited_by_user
 ```
 
-CSV values beginning with `=`, `+`, `-`, `@`, tab, or carriage return are prefixed to reduce spreadsheet formula-injection risk.
+Scoped CSV exports compiled document-level results, not page-level absence checks. Each scoped parameter is emitted in scope order; matched parameters emit one row per match, and parameters not found anywhere emit one row with `overall_status=not_found`, `needs_review=true`, and `PARAMETER_NOT_FOUND_IN_DOCUMENT`. CSV values beginning with `=`, `+`, `-`, `@`, tab, or carriage return are prefixed to reduce spreadsheet formula-injection risk.
 
 ## Deployment
 
