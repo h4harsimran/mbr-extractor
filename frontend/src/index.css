@@ -1702,3 +1702,122 @@ input:focus-visible {
     grid-template-columns: 1fr;
   }
 }
+
+.review-completion-indicator {
+  margin: 12px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.review-queue-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 16px;
+  align-items: start;
+}
+
+.review-queue-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.review-queue-group-heading,
+.review-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.review-queue-group-heading span {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.review-item-card {
+  cursor: default;
+}
+
+.review-card-value,
+.review-card-reason {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.review-card-value {
+  font-weight: 700;
+}
+
+.review-card-reason {
+  color: var(--text-muted);
+}
+
+.review-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.review-card-actions .btn {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.document-not-found-panel {
+  position: sticky;
+  top: 16px;
+}
+
+.document-not-found-panel h4 {
+  margin: 4px 0 8px;
+  color: var(--text-primary);
+}
+
+.document-not-found-panel p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.document-not-found-details {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.document-not-found-details div {
+  display: grid;
+  gap: 3px;
+}
+
+.document-not-found-details dt {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.document-not-found-details dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .review-queue-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .document-not-found-panel {
+    position: static;
+  }
+}
