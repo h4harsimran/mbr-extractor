@@ -30,6 +30,12 @@ const reviewReason = (row: ReviewRow) => row.kind === "full"
   ? row.warnings?.map((warning) => warning.message || warning.code).join("; ") || row.review_reason || "No review reason provided."
   : row.review_reasons.join("; ") || "No review reason provided.";
 
+const rowTitle = (row: ReviewRow) => row.kind === "full" ? row.parameter_label ?? "Unnamed parameter" : row.display_name;
+const sourceLabel = (row: ReviewRow) => row.kind === "scoped" ? row.source_label || "Not returned" : row.parameter_label || "Not returned";
+const nearbyText = (row: ReviewRow) => row.kind === "scoped" ? row.nearby_text || "No nearby text returned." : row.comments || "No nearby text returned.";
+const confidenceLabel = (row: ReviewRow) => `${(row.extraction_confidence * 100).toFixed(0)}%`;
+const statusLabel = (row: ReviewRow) => row.kind === "scoped" ? scopedStatus(row) : row.needs_review ? "Needs review" : "OK";
+
 interface Props {
   mode: ExtractionMode;
   pageNumber: number;
@@ -49,13 +55,15 @@ export default function PageRowsPanel({ mode, pageNumber, rows, selectedRowIndex
   const rowButtonRefs = useRef<Record<number, HTMLButtonElement | null>>({});
   const reviewRows = rows.filter(reviewNeeded);
   const visibleRows = showAllRows ? rows : reviewRows;
-  const selected = rows.find((row) => row.rowIdx === selectedRowIndex) ?? visibleRows[0];
+  const selected = (selectedRowIndex !== null ? rows.find((row) => row.rowIdx === selectedRowIndex) : undefined) ?? visibleRows[0];
   const selectedIsHidden = selected ? !visibleRows.some((row) => row.rowIdx === selected.rowIdx) : false;
   const displayedRows = selected && selectedIsHidden ? [selected, ...visibleRows] : visibleRows;
 
   useEffect(() => {
     if (queueDrivenReview && selectedRowIndex !== null) {
-      rowButtonRefs.current[selectedRowIndex]?.focus();
+      const selectedButton = rowButtonRefs.current[selectedRowIndex];
+      selectedButton?.focus();
+      selectedButton?.scrollIntoView({ block: "nearest" });
     }
   }, [queueDrivenReview, selectedRowIndex, pageNumber, showAllRows]);
 
@@ -78,7 +86,7 @@ export default function PageRowsPanel({ mode, pageNumber, rows, selectedRowIndex
       <div className="review-toolbar">
         <div>
           <h3>Rows on page {pageNumber}</h3>
-          <p className="scope-review-meta">{showAllRows ? "Showing all rows on this page." : "Showing only rows that need review by default for faster queue review."}</p>
+          <p className="scope-review-meta">{showAllRows ? `Showing all ${rows.length} rows on this page.` : `Showing ${reviewRows.length} review-needed ${reviewRows.length === 1 ? "row" : "rows"} by default.`}</p>
         </div>
         <div className="review-toolbar-actions">
           <label className="review-toggle"><input type="checkbox" checked={showAllRows} onChange={(event) => setShowAllRows(event.target.checked)} />Show all rows on this page</label>
@@ -89,11 +97,19 @@ export default function PageRowsPanel({ mode, pageNumber, rows, selectedRowIndex
         {displayedRows.map((row) => {
           const isSelected = selected?.rowIdx === row.rowIdx;
           return (
-            <button key={`${row.kind}-${row.rowIdx}`} ref={(element) => { rowButtonRefs.current[row.rowIdx] = element; }} className={`review-row-card ${isSelected ? "selected" : ""} ${queueDrivenReview && isSelected ? "queue-focused" : ""}`} onClick={() => onSelectRow(row.rowIdx)}>
-              <strong>{row.kind === "full" ? row.parameter_label ?? "Unnamed parameter" : row.display_name}</strong>
-              <span>{row.kind === "scoped" ? `Source: ${row.source_label || "Not returned"}` : `Page ${row.page_number}`}</span>
-              <span>{(row.extraction_confidence * 100).toFixed(0)}% confidence · Page {row.page_number}</span>
-              <span>{row.kind === "scoped" ? scopedStatus(row) : row.needs_review ? "Needs review" : "OK"}</span>
+            <button
+              key={`${row.kind}-${row.rowIdx}`}
+              ref={(element) => { rowButtonRefs.current[row.rowIdx] = element; }}
+              className={`review-row-card ${isSelected ? "selected" : ""} ${queueDrivenReview && isSelected ? "queue-focused" : ""}`}
+              aria-current={isSelected ? "true" : undefined}
+              aria-label={`${queueDrivenReview && isSelected ? "Queue-selected " : ""}${rowTitle(row)}. ${statusLabel(row)}. ${reviewReason(row)}`}
+              onClick={() => onSelectRow(row.rowIdx)}
+            >
+              <strong>{rowTitle(row)}</strong>
+              <span>Source: {sourceLabel(row)}</span>
+              <span className="review-row-snippet">Nearby: {nearbyText(row)}</span>
+              <span>{confidenceLabel(row)} confidence · Page {row.page_number}</span>
+              <span>{statusLabel(row)}</span>
             </button>
           );
         })}
@@ -101,16 +117,17 @@ export default function PageRowsPanel({ mode, pageNumber, rows, selectedRowIndex
       {selected && (
         <div className="review-detail-card">
           <p className="eyebrow">{queueDrivenReview ? "Queue-selected row" : "Selected row"}</p>
-          <h4>{selected.kind === "full" ? selected.parameter_label ?? "Unnamed parameter" : selected.display_name}</h4>
+          <h4>{rowTitle(selected)}</h4>
+          {queueDrivenReview && <p className="scope-review-meta">This row was opened from the review queue and is highlighted in the page row list.</p>}
           <div className="evidence-grid" aria-label="Primary evidence">
-            <div><strong>Source label</strong><span>{selected.kind === "scoped" ? selected.source_label || "Not returned" : selected.parameter_label || "Not returned"}</span></div>
-            <div><strong>Confidence</strong><span>{(selected.extraction_confidence * 100).toFixed(0)}%</span></div>
+            <div><strong>Source label</strong><span>{sourceLabel(selected)}</span></div>
+            <div className="evidence-grid-wide"><strong>Nearby text</strong><span>{nearbyText(selected)}</span></div>
+            <div><strong>Confidence</strong><span>{confidenceLabel(selected)}</span></div>
             <div><strong>Page</strong><span>{selected.page_number}</span></div>
-            <div className="evidence-grid-wide"><strong>Nearby text</strong><span>{selected.kind === "scoped" ? selected.nearby_text || "No nearby text returned." : selected.comments || "No nearby text returned."}</span></div>
           </div>
-          <div className="review-reason-callout"><strong>Review reason:</strong> {reviewReason(selected)}</div>
           {mode === "scoped" && selected.kind === "scoped" && <div className="scope-review-meta"><strong>Status:</strong> {scopedStatus(selected)}</div>}
           <div className="editable-review-fields" aria-label="Editable extracted fields">
+            <div className="review-reason-callout"><strong>Review reason for the fields below:</strong> {reviewReason(selected)}</div>
             <label>Target<Editable value={selected.target_value ?? ""} onCommit={(value) => selected.kind === "full" ? onUpdateFullRow(pageNumber, selected.rowIdx, "target_value", value) : onUpdateScopedRow(pageNumber, selected.rowIdx, "target_value", value)} /></label>
             <label>Actual<Editable value={selected.actual_value ?? ""} onCommit={(value) => selected.kind === "full" ? onUpdateFullRow(pageNumber, selected.rowIdx, "actual_value", value) : onUpdateScopedRow(pageNumber, selected.rowIdx, "actual_value", value)} /></label>
             <label>Units<Editable value={selected.units ?? ""} onCommit={(value) => selected.kind === "full" ? onUpdateFullRow(pageNumber, selected.rowIdx, "units", value) : onUpdateScopedRow(pageNumber, selected.rowIdx, "units", value)} /></label>
