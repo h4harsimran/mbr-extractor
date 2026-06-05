@@ -1997,3 +1997,19 @@ input:focus-visible {
     position: static;
   }
 }
+
+.restore-previews-input {
+  display: none;
+}
+
+.restore-previews-callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.restore-previews-error {
+  color: var(--warning);
+  margin-top: 8px;
+}

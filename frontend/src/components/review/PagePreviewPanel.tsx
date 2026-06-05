@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import type { PagePreview } from "../../types";
 
 interface Props {
@@ -10,11 +10,22 @@ interface Props {
   selectedSourceLabel?: string;
   onZoomChange: (zoom: "fit" | 0.75 | 1 | 1.25) => void;
   onPageChange: (pageNumber: number) => void;
+  onRestorePreviews?: (file: File) => void;
+  isRestoringPreviews?: boolean;
 }
 
-export default function PagePreviewPanel({ preview, pageNumber, pageNumbers, zoom, selectedParameterLabel, selectedSourceLabel, onZoomChange, onPageChange }: Props) {
+export default function PagePreviewPanel({ preview, pageNumber, pageNumbers, zoom, selectedParameterLabel, selectedSourceLabel, onZoomChange, onPageChange, onRestorePreviews, isRestoringPreviews = false }: Props) {
   const previewStyle = preview && zoom !== "fit" ? ({ width: `${preview.width * zoom}px` } as CSSProperties) : undefined;
   const selectedContext = [selectedParameterLabel, selectedSourceLabel ? `Source: ${selectedSourceLabel}` : undefined].filter(Boolean).join(" · ");
+  const restoreInputRef = useRef<HTMLInputElement | null>(null);
+  const openRestoreFilePicker = () => {
+    if (restoreInputRef.current) restoreInputRef.current.value = "";
+    restoreInputRef.current?.click();
+  };
+  const handleRestoreFileSelected = (file: File | undefined) => {
+    if (!file || !onRestorePreviews) return;
+    onRestorePreviews(file);
+  };
   return (
     <section className="review-preview-panel" aria-label="PDF page preview">
       <div className="review-toolbar">
@@ -30,7 +41,28 @@ export default function PagePreviewPanel({ preview, pageNumber, pageNumbers, zoo
         {selectedContext ? <span> Selected: {selectedContext}.</span> : null}
       </p>
       <div className="page-preview-frame">
-        {preview ? <img className={zoom === "fit" ? "page-preview-image fit" : "page-preview-image fixed"} src={preview.dataUrl} alt={`Rendered PDF page ${pageNumber}`} style={previewStyle} /> : <div className="empty-state">Page preview is unavailable after reload. Re-upload the same PDF to restore page previews.</div>}
+        {preview ? (
+          <img className={zoom === "fit" ? "page-preview-image fit" : "page-preview-image fixed"} src={preview.dataUrl} alt={`Rendered PDF page ${pageNumber}`} style={previewStyle} />
+        ) : (
+          <div className="empty-state">
+            <p>Page preview is unavailable after reload because rendered page images are not saved.</p>
+            {onRestorePreviews ? (
+              <>
+                <input
+                  ref={restoreInputRef}
+                  className="restore-previews-input"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  aria-label="Choose the same PDF to restore page previews"
+                  onChange={(event) => handleRestoreFileSelected(event.target.files?.[0])}
+                />
+                <button className="btn btn-secondary" onClick={openRestoreFilePicker} disabled={isRestoringPreviews}>
+                  {isRestoringPreviews ? "Restoring previews…" : "Restore previews"}
+                </button>
+              </>
+            ) : null}
+          </div>
+        )}
       </div>
     </section>
   );

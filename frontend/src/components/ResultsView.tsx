@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ScopedExtractionSummary from "./scope/ScopedExtractionSummary";
 import ReviewQueue from "./review/ReviewQueue";
 import ReviewWorkspace from "./review/ReviewWorkspace";
@@ -20,6 +20,10 @@ interface ResultsViewProps {
   onUpdateScopedRow: (pageNumber: number, rowIndex: number, field: keyof ScopedExtractionResult, value: string | boolean | number | string[] | ReviewStatus | null) => void;
   onRetryPage: (pageNumber: number) => void;
   onRetryFailed: () => void;
+  hasRestoredResultsWithoutPreviews?: boolean;
+  isRestoringPreviews?: boolean;
+  restorePreviewsError?: string | null;
+  onRestorePreviews?: (file: File) => void;
 }
 
 interface FlatRow extends ExtractedRow { rowIdx: number; lot_number: string | null; }
@@ -45,9 +49,10 @@ const fullReviewLabel = (row: FlatRow) => row.needs_review ? "Needs review" : ro
 const fullWarnings = (row: FlatRow) => row.warnings ?? [];
 const canQuickAcceptFullRow = (row: FlatRow) => row.needs_review && hasSufficientConfidence(row.extraction_confidence) && fullWarnings(row).length === 0;
 
-export default function ResultsView({ pages, scopedPages, extractionMode, allPages, pagePreviews, filename, failedCount, scopedPlan, onReset, onUpdateRow, onUpdateScopedRow, onRetryPage, onRetryFailed }: ResultsViewProps) {
+export default function ResultsView({ pages, scopedPages, extractionMode, allPages, pagePreviews, filename, failedCount, scopedPlan, onReset, onUpdateRow, onUpdateScopedRow, onRetryPage, onRetryFailed, hasRestoredResultsWithoutPreviews = false, isRestoringPreviews = false, restorePreviewsError = null, onRestorePreviews }: ResultsViewProps) {
   const rowsPerPage = 50;
   const [currentPage, setCurrentPage] = useState(1);
+  const restoreInputRef = useRef<HTMLInputElement | null>(null);
 
   const allRows: FlatRow[] = useMemo(() => pages.flatMap((page) => page.rows.map((row, rowIdx) => ({ ...row, rowIdx, lot_number: page.lot_number }))), [pages]);
   const scopedRows: FlatScopedRow[] = useMemo(() => scopedPages.flatMap((page) => page.scoped_results.map((row, rowIdx) => ({ ...row, rowIdx, page_number: page.page_number, lot_number: page.lot_number }))), [scopedPages]);
@@ -87,6 +92,17 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
   const selectView = (tab: ViewTab) => {
     setHasChosenView(true);
     setViewTab(tab);
+  };
+
+
+  const openRestoreFilePicker = () => {
+    if (restoreInputRef.current) restoreInputRef.current.value = "";
+    restoreInputRef.current?.click();
+  };
+
+  const handleRestoreFileSelected = (file: File | undefined) => {
+    if (!file || !onRestorePreviews) return;
+    onRestorePreviews(file);
   };
 
   const handleDownload = () => {
@@ -168,6 +184,29 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
         </div>
       </div>
 
+
+
+      <input
+        ref={restoreInputRef}
+        className="restore-previews-input"
+        type="file"
+        accept="application/pdf,.pdf"
+        aria-label="Choose the same PDF to restore page previews"
+        onChange={(event) => handleRestoreFileSelected(event.target.files?.[0])}
+      />
+
+      {hasRestoredResultsWithoutPreviews && (
+        <div className="callout callout-info restore-previews-callout">
+          <div>
+            <strong>Extracted results were restored.</strong> Page images are kept private in browser memory and are not saved with sessions, so choose the same PDF to restore side-by-side previews without re-running extraction.
+            {restorePreviewsError ? <div className="restore-previews-error">{restorePreviewsError}</div> : null}
+          </div>
+          <button className="btn btn-secondary" onClick={openRestoreFilePicker} disabled={isRestoringPreviews}>
+            {isRestoringPreviews ? "Restoring previews…" : "Restore previews"}
+          </button>
+        </div>
+      )}
+
       {failedCount > 0 && (
         <div className="callout callout-warning retry-callout">
           <div><strong>{failedCount} page{failedCount > 1 ? "s" : ""} failed.</strong> Failed pages are omitted from CSV export unless retried.</div>
@@ -184,7 +223,7 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
       </div>
 
       {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} compiledScoped={compiledScoped} documentNotApplicableIds={documentNotApplicableIds} selectedDocumentParameterId={documentDetailParameterId} resolvedReviewCount={resolvedReviewActionCount} onSelect={openReviewTarget} onSelectParameter={openScopedParameterDetail} onAccept={acceptReviewItem} onMarkNotApplicable={markReviewItemNotApplicable} onMarkDocumentNotApplicable={markDocumentParameterNotApplicable} onLeaveDocumentUnresolved={leaveDocumentParameterUnresolved} />}
-      {viewTab === "review" && <ReviewWorkspace mode={extractionMode} pages={pages} scopedPages={scopedPages} previews={pagePreviews} initialPage={reviewTarget.pageNumber} initialRow={reviewTarget.rowIndex} onUpdateFullRow={onUpdateRow} onUpdateScopedRow={onUpdateScopedRow} onRetryPage={onRetryPage} />}
+      {viewTab === "review" && <ReviewWorkspace mode={extractionMode} pages={pages} scopedPages={scopedPages} previews={pagePreviews} initialPage={reviewTarget.pageNumber} initialRow={reviewTarget.rowIndex} onUpdateFullRow={onUpdateRow} onUpdateScopedRow={onUpdateScopedRow} onRetryPage={onRetryPage} onRestorePreviews={onRestorePreviews} isRestoringPreviews={isRestoringPreviews} />}
       {viewTab === "table" && (extractionMode === "scoped" ? (
         <>
           <ScopedExtractionSummary pages={scopedPages} compiled={compiledScoped} focusedParameterId={selectedScopedParameterId} />
