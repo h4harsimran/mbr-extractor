@@ -79,6 +79,8 @@ export interface ScopedExtractionPlan {
 }
 
 export type ReviewStatus = "open" | "accepted" | "not_applicable";
+export type ScopedDocumentReviewStatus = "unresolved" | "not_applicable";
+export type ScopedSelectedMatch = { page_number: number; row_index: number };
 
 export interface ScopedExtractionResult {
   parameter_id: string;

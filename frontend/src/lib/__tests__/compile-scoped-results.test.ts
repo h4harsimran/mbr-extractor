@@ -48,6 +48,26 @@ describe("compileScopedResults", () => {
     expect(compiled.not_found_count).toBe(2);
   });
 
+  it("ignores out-of-scope model output", () => {
+    const compiled = compileScopedResults(scope, pages([match("temperature"), match("unexpected_parameter")]));
+    expect(compiled.parameters.map((parameter) => parameter.parameter_id)).toEqual(["temperature", "ph", "pressure"]);
+    expect(compiled.total_matches).toBe(1);
+  });
+
+  it("accepts empty per-page scoped matches", () => {
+    const compiled = compileScopedResults(scope, pages([]));
+    expect(compiled.total_matches).toBe(0);
+    expect(compiled.not_found_count).toBe(3);
+    expect(compiled.action_required_count).toBe(3);
+  });
+
+  it("marks document-level not applicable decisions without row review", () => {
+    const compiled = compileScopedResults(scope, pages([match("temperature")]), { documentReviewStatuses: { ph: "not_applicable" } });
+    expect(compiled.parameters.find((parameter) => parameter.parameter_id === "ph")?.overall_status).toBe("not_applicable");
+    expect(compiled.not_found_count).toBe(1);
+    expect(compiled.action_required_count).toBe(1);
+  });
+
   it("groups multiple page matches under the same parameter", () => {
     const compiled = compileScopedResults(scope, [
       ...pages([match("temperature", { actual_value: "37" })]),
@@ -55,6 +75,8 @@ describe("compileScopedResults", () => {
     ]);
     expect(compiled.parameters[0].matches.map((item) => item.page_number)).toEqual([1, 2]);
     expect(compiled.parameters[0].overall_status).toBe("multiple_matches");
+    expect(compiled.multiple_match_count).toBe(1);
+    expect(compiled.action_required_count).toBe(3);
   });
 
   it("sets needs_review status when any match needs review", () => {
@@ -65,5 +87,13 @@ describe("compileScopedResults", () => {
   it("preserves duplicate matches on the same page", () => {
     const compiled = compileScopedResults(scope, pages([match("temperature", { nearby_text: "first" }), match("temperature", { nearby_text: "second" })]));
     expect(compiled.parameters[0].matches.map((item) => item.nearby_text)).toEqual(["first", "second"]);
+  });
+
+  it("resolves multiple matches to the selected export row", () => {
+    const compiled = compileScopedResults(scope, pages([match("temperature", { actual_value: "37" }), match("temperature", { actual_value: "38" })]), { selectedMatches: { temperature: { page_number: 1, row_index: 1 } } });
+    expect(compiled.parameters[0].overall_status).toBe("matched");
+    expect(compiled.parameters[0].matches).toHaveLength(1);
+    expect(compiled.parameters[0].matches[0].actual_value).toBe("38");
+    expect(compiled.multiple_match_count).toBe(0);
   });
 });
