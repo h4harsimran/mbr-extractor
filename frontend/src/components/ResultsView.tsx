@@ -33,11 +33,17 @@ function EditableCell({ value, onCommit }: { value: string; onCommit: (value: st
 }
 
 const confidenceClass = (confidence: number) => confidence >= 0.8 ? "high" : confidence >= 0.6 ? "medium" : "low";
+const hasSufficientConfidence = (confidence: number) => confidence >= 0.8;
 const scopedReviewLabel = (row: FlatScopedRow) => {
   if (row.review_status === "not_applicable") return "Not applicable";
-  if (row.needs_review) return "Review";
+  if (row.needs_review) return "Needs review";
   return row.review_status === "accepted" ? "Accepted" : "OK";
 };
+const scopedReviewReasons = (row: FlatScopedRow) => row.review_reasons.filter((reason) => reason.trim().length > 0);
+const canQuickAcceptScopedRow = (row: FlatScopedRow) => row.needs_review && hasSufficientConfidence(row.extraction_confidence) && scopedReviewReasons(row).length === 0;
+const fullReviewLabel = (row: FlatRow) => row.needs_review ? "Needs review" : row.edited_by_user ? "Edited" : "OK";
+const fullWarnings = (row: FlatRow) => row.warnings ?? [];
+const canQuickAcceptFullRow = (row: FlatRow) => row.needs_review && hasSufficientConfidence(row.extraction_confidence) && fullWarnings(row).length === 0;
 
 export default function ResultsView({ pages, scopedPages, extractionMode, allPages, pagePreviews, filename, failedCount, scopedPlan, onReset, onUpdateRow, onUpdateScopedRow, onRetryPage, onRetryFailed }: ResultsViewProps) {
   const rowsPerPage = 50;
@@ -182,10 +188,73 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
       {viewTab === "table" && (extractionMode === "scoped" ? (
         <>
           <ScopedExtractionSummary pages={scopedPages} compiled={compiledScoped} focusedParameterId={selectedScopedParameterId} />
-          <div className="data-table-wrapper"><table className="data-table"><thead><tr><th>Page</th><th>Parameter</th><th>Target</th><th>Actual</th><th>Units</th><th>Source</th><th>Conf.</th><th>Review</th></tr></thead><tbody>{paginatedScopedRows.map((row) => <tr key={`${row.page_number}-${row.parameter_id}-${row.rowIdx}`}><td>{row.page_number}</td><td>{row.display_name}</td><td><EditableCell value={row.target_value ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "target_value", v)} /></td><td><EditableCell value={row.actual_value ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "actual_value", v)} /></td><td><EditableCell value={row.units ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "units", v)} /></td><td><EditableCell value={row.source_label ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "source_label", v)} /></td><td><span className="confidence-bar"><span className={`confidence-fill ${confidenceClass(row.extraction_confidence)}`} style={{ width: `${row.extraction_confidence * 100}%` }} /></span>{(row.extraction_confidence * 100).toFixed(0)}%</td><td>{row.needs_review ? <button className="badge badge-warning" onClick={() => onUpdateScopedRow(row.page_number, row.rowIdx, "needs_review", false)} title={row.review_reasons.join(", ")}>{scopedReviewLabel(row)}</button> : <button className="badge badge-success" onClick={() => onUpdateScopedRow(row.page_number, row.rowIdx, "needs_review", true)}>{scopedReviewLabel(row)}</button>}</td></tr>)}</tbody></table></div>
+          <div className="data-table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr><th>Page</th><th>Parameter</th><th>Target</th><th>Actual</th><th>Units</th><th>Source</th><th>Conf.</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody>
+                {paginatedScopedRows.map((row) => {
+                  const reviewReasons = scopedReviewReasons(row);
+                  const statusClass = row.needs_review ? "badge-warning" : "badge-success";
+                  return (
+                    <tr key={`${row.page_number}-${row.parameter_id}-${row.rowIdx}`}>
+                      <td>{row.page_number}</td>
+                      <td>{row.display_name}</td>
+                      <td><EditableCell value={row.target_value ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "target_value", v)} /></td>
+                      <td><EditableCell value={row.actual_value ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "actual_value", v)} /></td>
+                      <td><EditableCell value={row.units ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "units", v)} /></td>
+                      <td><EditableCell value={row.source_label ?? ""} onCommit={(v) => onUpdateScopedRow(row.page_number, row.rowIdx, "source_label", v)} /></td>
+                      <td><span className="confidence-bar"><span className={`confidence-fill ${confidenceClass(row.extraction_confidence)}`} style={{ width: `${row.extraction_confidence * 100}%` }} /></span>{(row.extraction_confidence * 100).toFixed(0)}%</td>
+                      <td><span className={`badge ${statusClass}`} title={reviewReasons.join(", ")}>{scopedReviewLabel(row)}</span></td>
+                      <td>
+                        <div className="table-action-group">
+                          <button className="btn btn-secondary btn-compact" onClick={() => openReviewTarget(row.page_number, row.rowIdx)}>{row.needs_review ? "Review" : "Open"}</button>
+                          <button className="btn btn-secondary btn-compact" onClick={() => openReviewTarget(row.page_number, row.rowIdx)}>Open in side-by-side</button>
+                          {canQuickAcceptScopedRow(row) && <button className="btn btn-success btn-compact" onClick={() => acceptReviewItem(row.page_number, row.rowIdx)}>Quick accept</button>}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </>
       ) : (
-        <div className="data-table-wrapper"><table className="data-table"><thead><tr><th>Page</th><th>Parameter</th><th>Target</th><th>Actual</th><th>Units</th><th>Performed</th><th>Verified</th><th>Conf.</th><th>Review</th></tr></thead><tbody>{paginatedRows.map((row, i) => <tr key={`${row.page_number}-${row.row_id}-${startIndex + i}`}><td>{row.page_number}</td><td><EditableCell value={row.parameter_label ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "parameter_label", v)} /></td><td><EditableCell value={row.target_value ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "target_value", v)} /></td><td><EditableCell value={row.actual_value ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "actual_value", v)} /></td><td><EditableCell value={row.units ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "units", v)} /></td><td>{row.performed_by_initials ?? "—"}</td><td>{row.verified_by_initials ?? "—"}</td><td><span className="confidence-bar"><span className={`confidence-fill ${confidenceClass(row.extraction_confidence)}`} style={{ width: `${row.extraction_confidence * 100}%` }} /></span>{(row.extraction_confidence * 100).toFixed(0)}%</td><td>{row.needs_review ? <button className="badge badge-warning" onClick={() => onUpdateRow(row.page_number, row.rowIdx, "needs_review", false)} title={row.warnings?.map((w) => w.code).join(", ")}>Review</button> : row.edited_by_user ? <span className="badge badge-success">Edited</span> : <span className="badge badge-success">OK</span>}</td></tr>)}</tbody></table></div>
+        <div className="data-table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr><th>Page</th><th>Parameter</th><th>Target</th><th>Actual</th><th>Units</th><th>Performed</th><th>Verified</th><th>Conf.</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+              {paginatedRows.map((row, i) => {
+                const warnings = fullWarnings(row);
+                const statusClass = row.needs_review ? "badge-warning" : "badge-success";
+                return (
+                  <tr key={`${row.page_number}-${row.row_id}-${startIndex + i}`}>
+                    <td>{row.page_number}</td>
+                    <td><EditableCell value={row.parameter_label ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "parameter_label", v)} /></td>
+                    <td><EditableCell value={row.target_value ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "target_value", v)} /></td>
+                    <td><EditableCell value={row.actual_value ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "actual_value", v)} /></td>
+                    <td><EditableCell value={row.units ?? ""} onCommit={(v) => onUpdateRow(row.page_number, row.rowIdx, "units", v)} /></td>
+                    <td>{row.performed_by_initials ?? "—"}</td>
+                    <td>{row.verified_by_initials ?? "—"}</td>
+                    <td><span className="confidence-bar"><span className={`confidence-fill ${confidenceClass(row.extraction_confidence)}`} style={{ width: `${row.extraction_confidence * 100}%` }} /></span>{(row.extraction_confidence * 100).toFixed(0)}%</td>
+                    <td><span className={`badge ${statusClass}`} title={warnings.map((w) => w.code).join(", ")}>{fullReviewLabel(row)}</span></td>
+                    <td>
+                      <div className="table-action-group">
+                        <button className="btn btn-secondary btn-compact" onClick={() => openReviewTarget(row.page_number, row.rowIdx)}>{row.needs_review ? "Review" : "Open"}</button>
+                        <button className="btn btn-secondary btn-compact" onClick={() => openReviewTarget(row.page_number, row.rowIdx)}>Open in side-by-side</button>
+                        {canQuickAcceptFullRow(row) && <button className="btn btn-success btn-compact" onClick={() => acceptReviewItem(row.page_number, row.rowIdx)}>Quick accept</button>}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       ))}
       {viewTab === "table" && totalRows > rowsPerPage && <div className="pagination-controls"><button className="btn btn-secondary" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}>Previous</button><span>Showing {startIndex + 1} to {Math.min(startIndex + rowsPerPage, totalRows)} of {totalRows} rows.</span><button className="btn btn-secondary" disabled={currentPage === totalPagesCount} onClick={() => setCurrentPage((p) => Math.min(totalPagesCount, p + 1))}>Next</button></div>}
     </div>

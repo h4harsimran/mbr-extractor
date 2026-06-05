@@ -354,6 +354,12 @@ body {
   margin-top: 24px;
 }
 
+.btn-compact {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
 /* ── Progress ───────────────────────────────────────────────────────── */
 
 .progress-container {
@@ -622,6 +628,17 @@ body {
 
 .data-table tr:last-child td {
   border-bottom: none;
+}
+
+.table-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 220px;
+}
+
+.table-action-group .btn {
+  white-space: nowrap;
 }
 
 .badge {
