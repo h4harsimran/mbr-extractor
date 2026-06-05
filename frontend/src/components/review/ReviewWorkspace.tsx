@@ -13,6 +13,8 @@ interface Props {
   onUpdateFullRow: (pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string | boolean | number) => void;
   onUpdateScopedRow: (pageNumber: number, rowIndex: number, field: keyof ScopedExtractionResult, value: string | boolean | number | string[] | ReviewStatus | null) => void;
   onRetryPage: (pageNumber: number) => void;
+  onRestorePreviews?: (file: File) => void;
+  isRestoringPreviews?: boolean;
 }
 
 const needsReview = (row: ReviewRow) => {
@@ -23,7 +25,7 @@ const needsReview = (row: ReviewRow) => {
 const selectedParameterLabel = (row: ReviewRow) => row.kind === "full" ? row.parameter_label ?? undefined : row.display_name;
 const selectedSourceLabel = (row: ReviewRow) => row.kind === "scoped" ? row.source_label ?? undefined : row.parameter_label ?? undefined;
 
-export default function ReviewWorkspace({ mode, pages, scopedPages, previews, initialPage, initialRow = null, onUpdateFullRow, onUpdateScopedRow, onRetryPage }: Props) {
+export default function ReviewWorkspace({ mode, pages, scopedPages, previews, initialPage, initialRow = null, onUpdateFullRow, onUpdateScopedRow, onRetryPage, onRestorePreviews, isRestoringPreviews = false }: Props) {
   const pageNumbers = useMemo(() => {
     const nums = mode === "scoped" ? scopedPages.map((page) => page.page_number) : pages.map((page) => page.page_number);
     return nums.length ? nums : [1];
@@ -91,6 +93,8 @@ export default function ReviewWorkspace({ mode, pages, scopedPages, previews, in
         selectedSourceLabel={selectedRow ? selectedSourceLabel(selectedRow) : undefined}
         onZoomChange={setZoom}
         onPageChange={(page) => { setPageNumber(page); setSelectedRowIndex(null); }}
+        onRestorePreviews={onRestorePreviews}
+        isRestoringPreviews={isRestoringPreviews}
       />
       <PageRowsPanel mode={mode} pageNumber={pageNumber} rows={rows} selectedRowIndex={selectedRowIndex} queueDrivenReview={queueDrivenReview} onSelectRow={setSelectedRowIndex} onUpdateFullRow={onUpdateFullRow} onUpdateScopedRow={onUpdateScopedRow} onRetryPage={onRetryPage} onAcceptAndNext={acceptAndNext} onSkipForNow={skipForNow} />
     </div>

@@ -38,6 +38,8 @@ export default function App() {
   const [scopeLoading, setScopeLoading] = useState(false);
   const [scopeWarnings, setScopeWarnings] = useState<string[]>([]);
   const [pagePreviews, setPagePreviews] = useState<PagePreview[]>([]);
+  const [isRestoringPreviews, setIsRestoringPreviews] = useState(false);
+  const [restorePreviewsError, setRestorePreviewsError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const initializePages = (totalPages: number): PageProgress[] =>
@@ -52,6 +54,7 @@ export default function App() {
   const prepareFile = useCallback(async (file: File) => {
     setError(null);
     setInfoMessage(null);
+    setRestorePreviewsError(null);
     if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
       setError("Please upload a PDF file.");
       return;
@@ -183,6 +186,8 @@ export default function App() {
     setScopeApproved(false);
     setScopeWarnings([]);
     setPagePreviews([]);
+    setIsRestoringPreviews(false);
+    setRestorePreviewsError(null);
   }, []);
 
   const handleUpdateRow = useCallback((pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string | boolean | number) => {
@@ -218,6 +223,59 @@ export default function App() {
       })
     );
   }, []);
+
+
+  const handleRestorePreviews = useCallback(async (file: File) => {
+    setError(null);
+    setInfoMessage(null);
+    setRestorePreviewsError(null);
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setRestorePreviewsError("Please choose the same PDF file to restore page previews.");
+      return;
+    }
+    if (bytesToMb(file.size) > extractionConfig.maxFileSizeMb) {
+      setRestorePreviewsError(`File is too large. Maximum size is ${extractionConfig.maxFileSizeMb} MB.`);
+      return;
+    }
+
+    const expectedPageCount = Math.max(...pages.map((page) => page.pageNumber), 0);
+    const pageNumbers = pages
+      .filter((page) => page.status === "completed" && (page.extraction || page.scopedExtraction))
+      .map((page) => page.pageNumber)
+      .sort((a, b) => a - b);
+
+    if (pageNumbers.length === 0) {
+      setRestorePreviewsError("There are no completed result pages to restore previews for.");
+      return;
+    }
+
+    let pdf;
+    setIsRestoringPreviews(true);
+    try {
+      pdf = await loadPdf(file);
+      if (expectedPageCount > 0 && pdf.numPages !== expectedPageCount) {
+        setRestorePreviewsError(`That PDF has ${pdf.numPages} page${pdf.numPages === 1 ? "" : "s"}, but this restored session expects ${expectedPageCount}. Choose the same PDF used for extraction.`);
+        return;
+      }
+
+      const restoredPreviews: PagePreview[] = [];
+      for (const pageNumber of pageNumbers) {
+        const rendered = await renderPage(pdf, pageNumber);
+        restoredPreviews.push({ pageNumber, dataUrl: rendered.dataUrl, width: rendered.width, height: rendered.height });
+      }
+
+      setPagePreviews(restoredPreviews);
+      setPreflight({ file, filename: filename || file.name, fileSizeBytes: file.size, pageCount: pdf.numPages });
+      if (!filename) setFilename(file.name);
+      setInfoMessage("Page previews restored from the PDF. Extraction results were not re-run.");
+    } catch (err) {
+      setRestorePreviewsError(`Failed to restore previews: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      pdf?.destroy();
+      setIsRestoringPreviews(false);
+    }
+  }, [filename, pages]);
 
   const handleBuildScope = useCallback(async () => {
     setScopeLoading(true);
@@ -277,6 +335,7 @@ export default function App() {
   const completedExtractions: PageExtraction[] = pages.filter((p) => p.status === "completed" && p.extraction).map((p) => p.extraction!);
   const completedScopedExtractions: ScopedPageExtraction[] = pages.filter((p) => p.status === "completed" && p.scopedExtraction).map((p) => p.scopedExtraction!);
   const failedPages = pages.filter((p) => p.status === "failed");
+  const hasRestoredResultsWithoutPreviews = appState === "results" && pagePreviews.length === 0 && pages.some((page) => page.status === "completed" && (page.extraction || page.scopedExtraction));
 
   return (
     <div className="app">
@@ -328,6 +387,10 @@ export default function App() {
             scopedPlan={scopedPlan}
             onRetryPage={(pageNumber) => processPages([pageNumber])}
             onRetryFailed={() => processPages(failedPages.map((page) => page.pageNumber))}
+            hasRestoredResultsWithoutPreviews={hasRestoredResultsWithoutPreviews}
+            isRestoringPreviews={isRestoringPreviews}
+            restorePreviewsError={restorePreviewsError}
+            onRestorePreviews={handleRestorePreviews}
           />
         )}
       </main>
