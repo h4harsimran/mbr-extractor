@@ -4,7 +4,7 @@ import ReviewQueue from "./review/ReviewQueue";
 import ReviewWorkspace from "./review/ReviewWorkspace";
 import { buildCSV, buildScopedCSV, downloadCSV } from "../lib/csv-builder";
 import { compileScopedResults } from "../lib/compile-scoped-results";
-import type { ExtractedRow, ExtractionMode, PageExtraction, PagePreview, PageProgress, ReviewStatus, ScopedExtractionPlan, ScopedExtractionResult, ScopedPageExtraction } from "../types";
+import type { ExtractedRow, ExtractionMode, PageExtraction, PagePreview, PageProgress, ReviewStatus, ScopedDocumentReviewStatus, ScopedExtractionPlan, ScopedExtractionResult, ScopedSelectedMatch, ScopedPageExtraction } from "../types";
 
 interface ResultsViewProps {
   pages: PageExtraction[];
@@ -18,6 +18,10 @@ interface ResultsViewProps {
   onReset: () => void;
   onUpdateRow: (pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string | boolean | number) => void;
   onUpdateScopedRow: (pageNumber: number, rowIndex: number, field: keyof ScopedExtractionResult, value: string | boolean | number | string[] | ReviewStatus | null) => void;
+  scopedDocumentReviewStatuses: Record<string, ScopedDocumentReviewStatus>;
+  scopedSelectedMatches: Record<string, ScopedSelectedMatch>;
+  onScopedDocumentReviewStatusChange: (parameterId: string, status: ScopedDocumentReviewStatus) => void;
+  onScopedSelectedMatchChange: (parameterId: string, selectedMatch: ScopedSelectedMatch) => void;
   onRetryPage: (pageNumber: number) => void;
   onRetryFailed: () => void;
   hasRestoredResultsWithoutPreviews?: boolean;
@@ -49,16 +53,16 @@ const fullReviewLabel = (row: FlatRow) => row.needs_review ? "Needs review" : ro
 const fullWarnings = (row: FlatRow) => row.warnings ?? [];
 const canQuickAcceptFullRow = (row: FlatRow) => row.needs_review && hasSufficientConfidence(row.extraction_confidence) && fullWarnings(row).length === 0;
 
-export default function ResultsView({ pages, scopedPages, extractionMode, allPages, pagePreviews, filename, failedCount, scopedPlan, onReset, onUpdateRow, onUpdateScopedRow, onRetryPage, onRetryFailed, hasRestoredResultsWithoutPreviews = false, isRestoringPreviews = false, restorePreviewsError = null, onRestorePreviews }: ResultsViewProps) {
+export default function ResultsView({ pages, scopedPages, extractionMode, allPages, pagePreviews, filename, failedCount, scopedPlan, onReset, onUpdateRow, onUpdateScopedRow, scopedDocumentReviewStatuses, scopedSelectedMatches, onScopedDocumentReviewStatusChange, onScopedSelectedMatchChange, onRetryPage, onRetryFailed, hasRestoredResultsWithoutPreviews = false, isRestoringPreviews = false, restorePreviewsError = null, onRestorePreviews }: ResultsViewProps) {
   const rowsPerPage = 50;
   const [currentPage, setCurrentPage] = useState(1);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
 
   const allRows: FlatRow[] = useMemo(() => pages.flatMap((page) => page.rows.map((row, rowIdx) => ({ ...row, rowIdx, lot_number: page.lot_number }))), [pages]);
   const scopedRows: FlatScopedRow[] = useMemo(() => scopedPages.flatMap((page) => page.scoped_results.map((row, rowIdx) => ({ ...row, rowIdx, page_number: page.page_number, lot_number: page.lot_number }))), [scopedPages]);
-  const compiledScoped = useMemo(() => scopedPlan ? compileScopedResults(scopedPlan, allPages) : null, [scopedPlan, allPages]);
+  const compiledScoped = useMemo(() => scopedPlan ? compileScopedResults(scopedPlan, allPages, { documentReviewStatuses: scopedDocumentReviewStatuses, selectedMatches: scopedSelectedMatches }) : null, [scopedPlan, allPages, scopedDocumentReviewStatuses, scopedSelectedMatches]);
   const totalRows = extractionMode === "scoped" ? scopedRows.length : allRows.length;
-  const reviewCount = extractionMode === "scoped" ? (compiledScoped?.needs_review_count ?? scopedRows.filter((row) => row.needs_review && row.review_status !== "accepted" && row.review_status !== "not_applicable").length) : allRows.filter((row) => row.needs_review).length;
+  const reviewCount = extractionMode === "scoped" ? (compiledScoped?.action_required_count ?? scopedRows.filter((row) => row.needs_review && row.review_status !== "accepted" && row.review_status !== "not_applicable").length) : allRows.filter((row) => row.needs_review).length;
   const editedCount = extractionMode === "scoped" ? scopedRows.filter((row) => row.edited_by_user).length : allRows.filter((row) => row.edited_by_user).length;
   const avgConfidence = totalRows > 0 ? (extractionMode === "scoped" ? scopedRows.reduce((sum, row) => sum + row.extraction_confidence, 0) : allRows.reduce((sum, row) => sum + row.extraction_confidence, 0)) / totalRows : 0;
   const successfulPages = extractionMode === "scoped" ? scopedPages.length : pages.length;
@@ -74,10 +78,8 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
   const [reviewTarget, setReviewTarget] = useState<{ pageNumber: number; rowIndex: number | null }>({ pageNumber: 1, rowIndex: null });
   const [selectedScopedParameterId, setSelectedScopedParameterId] = useState<string | null>(null);
   const [documentDetailParameterId, setDocumentDetailParameterId] = useState<string | null>(null);
-  const [documentNotApplicableIds, setDocumentNotApplicableIds] = useState<string[]>([]);
   const [resolvedReviewActionCount, setResolvedReviewActionCount] = useState(0);
-  const multipleMatchReviewCount = extractionMode === "scoped" ? (compiledScoped?.parameters.filter((parameter) => parameter.overall_status === "multiple_matches").length ?? 0) : 0;
-  const queueReviewCount = Math.max(0, reviewCount - documentNotApplicableIds.length) + multipleMatchReviewCount;
+  const queueReviewCount = reviewCount;
 
   useEffect(() => {
     if (queueReviewCount === 0 && viewTab === "queue") {
@@ -146,11 +148,19 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
   };
 
   const markDocumentParameterNotApplicable = (parameterId: string) => {
-    if (!documentNotApplicableIds.includes(parameterId)) {
-      setDocumentNotApplicableIds((ids) => [...ids, parameterId]);
+    if (scopedDocumentReviewStatuses[parameterId] !== "not_applicable") {
+      onScopedDocumentReviewStatusChange(parameterId, "not_applicable");
       setResolvedReviewActionCount((count) => count + 1);
     }
     setDocumentDetailParameterId(null);
+  };
+
+  const selectScopedMatchForExport = (parameterId: string, selectedMatch: ScopedSelectedMatch) => {
+    const previous = scopedSelectedMatches[parameterId];
+    onScopedSelectedMatchChange(parameterId, selectedMatch);
+    if (!previous || previous.page_number !== selectedMatch.page_number || previous.row_index !== selectedMatch.row_index) {
+      setResolvedReviewActionCount((count) => count + 1);
+    }
   };
 
   const leaveDocumentParameterUnresolved = () => {
@@ -178,7 +188,7 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
           <div className="metadata-item"><span className="metadata-label">Pages</span><span className="metadata-value metric-value">{successfulPages}/{allPages.length}</span></div>
           <div className="metadata-item"><span className="metadata-label">Failed</span><span className="metadata-value metric-value">{failedCount}</span></div>
           <div className="metadata-item"><span className="metadata-label">{extractionMode === "scoped" ? "Scoped results" : "Rows"}</span><span className="metadata-value metric-value">{totalRows}</span></div>
-          <div className="metadata-item"><span className="metadata-label">Need review</span><span className="metadata-value metric-value">{reviewCount}</span></div>
+          <div className="metadata-item"><span className="metadata-label">{extractionMode === "scoped" ? "Action required" : "Need review"}</span><span className="metadata-value metric-value">{reviewCount}</span></div>
           <div className="metadata-item"><span className="metadata-label">Edited</span><span className="metadata-value metric-value">{editedCount}</span></div>
           <div className="metadata-item"><span className="metadata-label">Avg confidence</span><span className="metadata-value metric-value">{(avgConfidence * 100).toFixed(0)}%</span></div>
         </div>
@@ -217,12 +227,12 @@ export default function ResultsView({ pages, scopedPages, extractionMode, allPag
       )}
 
       <div className="view-tabs" role="tablist" aria-label="Results views">
-        <button className={`tab-button ${viewTab === "queue" ? "active" : ""}`} role="tab" aria-selected={viewTab === "queue"} onClick={() => selectView("queue")}>Review queue ({queueReviewCount})</button>
+        <button className={`tab-button ${viewTab === "queue" ? "active" : ""}`} role="tab" aria-selected={viewTab === "queue"} onClick={() => selectView("queue")}>Action required ({queueReviewCount})</button>
         <button className={`tab-button ${viewTab === "table" ? "active" : ""}`} role="tab" aria-selected={viewTab === "table"} onClick={() => selectView("table")}>Results table</button>
         <button className={`tab-button ${viewTab === "review" ? "active" : ""}`} role="tab" aria-selected={viewTab === "review"} onClick={() => selectView("review")}>Side-by-side review</button>
       </div>
 
-      {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} compiledScoped={compiledScoped} documentNotApplicableIds={documentNotApplicableIds} selectedDocumentParameterId={documentDetailParameterId} resolvedReviewCount={resolvedReviewActionCount} onSelect={openReviewTarget} onSelectParameter={openScopedParameterDetail} onAccept={acceptReviewItem} onMarkNotApplicable={markReviewItemNotApplicable} onMarkDocumentNotApplicable={markDocumentParameterNotApplicable} onLeaveDocumentUnresolved={leaveDocumentParameterUnresolved} />}
+      {viewTab === "queue" && <ReviewQueue mode={extractionMode} pages={pages} scopedPages={scopedPages} compiledScoped={compiledScoped} selectedDocumentParameterId={documentDetailParameterId} resolvedReviewCount={resolvedReviewActionCount} onSelect={openReviewTarget} onSelectParameter={openScopedParameterDetail} onAccept={acceptReviewItem} onMarkNotApplicable={markReviewItemNotApplicable} onMarkDocumentNotApplicable={markDocumentParameterNotApplicable} onLeaveDocumentUnresolved={leaveDocumentParameterUnresolved} onSelectScopedMatch={selectScopedMatchForExport} />}
       {viewTab === "review" && <ReviewWorkspace mode={extractionMode} pages={pages} scopedPages={scopedPages} previews={pagePreviews} initialPage={reviewTarget.pageNumber} initialRow={reviewTarget.rowIndex} onUpdateFullRow={onUpdateRow} onUpdateScopedRow={onUpdateScopedRow} onRetryPage={onRetryPage} onRestorePreviews={onRestorePreviews} isRestoringPreviews={isRestoringPreviews} />}
       {viewTab === "table" && (extractionMode === "scoped" ? (
         <>

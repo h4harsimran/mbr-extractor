@@ -14,9 +14,12 @@ const pages = [{
 const compiled: CompiledScopedResult = {
   total_matches: 1,
   not_found_count: 1,
+  row_review_count: 0,
+  multiple_match_count: 0,
+  action_required_count: 1,
   needs_review_count: 1,
   parameters: [
-    { parameter_id: "ph", display_name: "pH", expected_units: [], synonyms: [], overall_status: "matched", matches: [{ ...pages[0].scoped_results[0], page_number: 1, lot_number: "LOT" }] },
+    { parameter_id: "ph", display_name: "pH", expected_units: [], synonyms: [], overall_status: "matched", matches: [{ ...pages[0].scoped_results[0], page_number: 1, row_index: 0, lot_number: "LOT" }] },
     { parameter_id: "do", display_name: "Dissolved oxygen", expected_units: [], synonyms: [], overall_status: "not_found", matches: [] },
   ],
 };

@@ -9,7 +9,7 @@
     "build:prod": "npm run build",
     "deploy": "wrangler pages deploy dist --project-name mbr-extractor-frontend",
     "preview": "vite preview",
-    "test": "npm run typecheck && node scripts/smoke-tests.mjs",
+    "test": "npm run typecheck && vitest run && node scripts/smoke-tests.mjs",
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
@@ -22,6 +22,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "~5.6.2",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^2.1.8"
   }
 }

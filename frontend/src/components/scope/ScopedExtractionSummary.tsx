@@ -9,6 +9,7 @@ function status(row: ScopedExtractionResult): string {
 }
 
 function parameterStatus(parameter: CompiledScopedParameter): string {
+  if (parameter.overall_status === "not_applicable") return "Not applicable";
   if (parameter.overall_status === "multiple_matches") return "Multiple matches";
   if (parameter.overall_status === "needs_review") return "Needs review";
   if (parameter.overall_status === "not_found") return "Not found";
@@ -16,6 +17,7 @@ function parameterStatus(parameter: CompiledScopedParameter): string {
 }
 
 function parameterDetails(parameter: CompiledScopedParameter): string {
+  if (parameter.overall_status === "not_applicable") return "Marked not applicable at the document level.";
   if (parameter.overall_status === "not_found") {
     const units = parameter.expected_units.length > 0 ? parameter.expected_units.join(", ") : "any expected unit";
     const synonyms = parameter.synonyms.length > 0 ? parameter.synonyms.join(", ") : "no additional synonyms";
@@ -90,15 +92,23 @@ export default function ScopedExtractionSummary({ pages, compiled, focusedParame
         <button className={`btn btn-secondary ${view === "parameter" ? "active" : ""}`} onClick={() => setView("parameter")}>By parameter</button>
         <button className={`btn btn-secondary ${view === "page" ? "active" : ""}`} onClick={() => setView("page")}>By page</button>
       </div>
+      {compiled && (
+        <div className="metadata-grid results-metadata-grid" aria-label="Scoped action metrics">
+          <div className="metadata-item"><span className="metadata-label">Action required</span><span className="metadata-value metric-value">{compiled.action_required_count}</span></div>
+          <div className="metadata-item"><span className="metadata-label">Rows needing review</span><span className="metadata-value metric-value">{compiled.row_review_count}</span></div>
+          <div className="metadata-item"><span className="metadata-label">Not found</span><span className="metadata-value metric-value">{compiled.not_found_count}</span></div>
+          <div className="metadata-item"><span className="metadata-label">Multiple matches</span><span className="metadata-value metric-value">{compiled.multiple_match_count}</span></div>
+        </div>
+      )}
       {view === "parameter" ? (
         <div className="scope-groups" aria-label="Scoped results by parameter">
           {(compiled?.parameters ?? []).map((parameter) => {
             const isFocused = parameter.parameter_id === focusedParameterId;
             return (
               <section className={`scope-review-card ${isFocused ? "selected" : ""}`} key={parameter.parameter_id} aria-live={isFocused ? "polite" : undefined}>
-                <h3>{parameter.display_name} <span className={`badge ${parameter.overall_status === "not_found" || parameter.overall_status === "needs_review" ? "badge-warning" : "badge-success"}`}>{parameterStatus(parameter)}</span></h3>
+                <h3>{parameter.display_name} <span className={`badge ${parameter.overall_status === "not_found" || parameter.overall_status === "needs_review" || parameter.overall_status === "multiple_matches" ? "badge-warning" : "badge-success"}`}>{parameterStatus(parameter)}</span></h3>
                 <p className="scope-review-meta">{parameterDetails(parameter)}</p>
-                {parameter.matches.length === 0 ? <div className="empty-state">No match found anywhere in the processed pages.</div> : (
+                {parameter.matches.length === 0 ? <div className="empty-state">{parameter.overall_status === "not_applicable" ? "Marked not applicable for this record." : "No match found anywhere in the processed pages."}</div> : (
                   <div className="scoped-match-list">
                     {parameter.matches.map((row, index) => (
                       <MatchSummaryCard key={`${row.page_number}-${row.parameter_id}-${index}`} row={row} />

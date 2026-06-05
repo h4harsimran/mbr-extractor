@@ -81,10 +81,11 @@ function legacyScopedPagesToCompiled(pages: ScopedPageExtraction[]): CompiledSco
     display_name: match.display_name,
     expected_units: [],
     synonyms: [],
-    matches: [{ ...match, page_number: page.page_number, lot_number: page.lot_number }],
+    matches: [{ ...match, page_number: page.page_number, row_index: 0, lot_number: page.lot_number }],
     overall_status: match.needs_review ? "needs_review" as const : "matched" as const,
   })));
-  return { parameters, total_matches: parameters.length, not_found_count: 0, needs_review_count: parameters.filter((parameter) => parameter.overall_status === "needs_review").length };
+  const rowReviewCount = parameters.filter((parameter) => parameter.overall_status === "needs_review").length;
+  return { parameters, total_matches: parameters.length, not_found_count: 0, row_review_count: rowReviewCount, multiple_match_count: 0, action_required_count: rowReviewCount, needs_review_count: rowReviewCount };
 }
 
 export function buildScopedCSV(input: CompiledScopedResult | ScopedPageExtraction[]): string {
@@ -95,9 +96,10 @@ export function buildScopedCSV(input: CompiledScopedResult | ScopedPageExtractio
       const values = SCOPED_CSV_COLUMNS.map((col) => {
         if (col === "parameter_id") return escapeCSV(parameter.parameter_id);
         if (col === "parameter_name") return escapeCSV(parameter.display_name);
-        if (col === "overall_status") return escapeCSV("not_found");
-        if (col === "needs_review") return escapeCSV(true);
-        if (col === "review_reasons") return escapeCSV(["PARAMETER_NOT_FOUND_IN_DOCUMENT"]);
+        if (col === "overall_status") return escapeCSV(parameter.overall_status);
+        if (col === "needs_review") return escapeCSV(parameter.overall_status === "not_found");
+        if (col === "review_status") return escapeCSV(parameter.overall_status === "not_applicable" ? "not_applicable" : "open");
+        if (col === "review_reasons") return escapeCSV(parameter.overall_status === "not_found" ? ["PARAMETER_NOT_FOUND_IN_DOCUMENT"] : []);
         return escapeCSV(null);
       });
       lines.push(values.join(","));

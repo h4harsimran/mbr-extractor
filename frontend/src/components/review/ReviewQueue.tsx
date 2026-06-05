@@ -6,7 +6,6 @@ interface Props {
   pages: PageExtraction[];
   scopedPages: ScopedPageExtraction[];
   compiledScoped: CompiledScopedResult | null;
-  documentNotApplicableIds: string[];
   selectedDocumentParameterId: string | null;
   resolvedReviewCount: number;
   onSelect: (pageNumber: number, rowIndex: number) => void;
@@ -15,6 +14,7 @@ interface Props {
   onMarkNotApplicable: (pageNumber: number, rowIndex: number) => void;
   onMarkDocumentNotApplicable: (parameterId: string) => void;
   onLeaveDocumentUnresolved: () => void;
+  onSelectScopedMatch: (parameterId: string, selectedMatch: { page_number: number; row_index: number }) => void;
 }
 
 type QueueGroup = "missing" | "low_confidence" | "unit_mismatch" | "multiple_matches" | "other";
@@ -33,6 +33,7 @@ type QueueItem = {
   expectedUnits?: string[];
   synonyms?: string[];
   matchCount?: number;
+  matches?: CompiledScopedParameter["matches"];
 };
 
 const GROUP_LABELS: Record<QueueGroup, string> = {
@@ -70,7 +71,6 @@ export default function ReviewQueue({
   pages,
   scopedPages,
   compiledScoped,
-  documentNotApplicableIds,
   selectedDocumentParameterId,
   resolvedReviewCount,
   onSelect,
@@ -79,8 +79,8 @@ export default function ReviewQueue({
   onMarkNotApplicable,
   onMarkDocumentNotApplicable,
   onLeaveDocumentUnresolved,
+  onSelectScopedMatch,
 }: Props) {
-  const documentNotApplicableSet = new Set(documentNotApplicableIds);
   const items: QueueItem[] = mode === "scoped"
     ? [
         ...scopedPages.flatMap((page) => page.scoped_results.map((row, rowIndex) => {
@@ -99,7 +99,7 @@ export default function ReviewQueue({
             include: row.needs_review && row.review_status !== "accepted" && row.review_status !== "not_applicable",
           };
         })).filter((item) => item.include),
-        ...(compiledScoped?.parameters.filter((parameter) => parameter.overall_status === "not_found" && !documentNotApplicableSet.has(parameter.parameter_id)).map((parameter) => ({
+        ...(compiledScoped?.parameters.filter((parameter) => parameter.overall_status === "not_found").map((parameter) => ({
           key: `document-${parameter.parameter_id}`,
           pageNumber: null,
           rowIndex: null,
@@ -116,7 +116,7 @@ export default function ReviewQueue({
         ...(compiledScoped?.parameters.filter((parameter) => parameter.overall_status === "multiple_matches").map((parameter) => ({
           key: `multiple-${parameter.parameter_id}`,
           pageNumber: parameter.matches[0]?.page_number ?? null,
-          rowIndex: scopedPages.find((page) => page.page_number === parameter.matches[0]?.page_number)?.scoped_results.findIndex((row) => row.parameter_id === parameter.parameter_id) ?? null,
+          rowIndex: parameter.matches[0]?.row_index ?? null,
           label: parameter.display_name,
           reason: `${parameter.matches.length} matches found. Choose the correct occurrence before export.`,
           currentValue: parameter.matches.map((match) => `Page ${match.page_number}: ${present(match.actual_value) ?? present(match.target_value) ?? "No value"}`).join(" · "),
@@ -125,6 +125,7 @@ export default function ReviewQueue({
           groups: ["multiple_matches" as const],
           kind: "multiple" as const,
           matchCount: parameter.matches.length,
+          matches: parameter.matches,
         })) ?? []),
       ]
     : pages.flatMap((page) => page.rows.map((row, rowIndex) => {
@@ -153,14 +154,14 @@ export default function ReviewQueue({
       <div className="section-header compact">
         <span className="step-badge subtle">RQ</span>
         <div>
-          <h3 className="section-title">Review queue ({items.length})</h3>
-          <p className="section-description">Rows and document-level scoped parameters that need attention before downstream use.</p>
+          <h3 className="section-title">Action required ({items.length})</h3>
+          <p className="section-description">Rows, missing document-level scoped parameters, and multiple-match choices that need attention before downstream use.</p>
         </div>
       </div>
       <div className="review-completion-indicator" aria-live="polite">
         {resolvedReviewItems} of {totalReviewItems} review item{totalReviewItems === 1 ? "" : "s"} resolved.
       </div>
-      {items.length === 0 ? <div className="empty-state">No rows currently need review.</div> : (
+      {items.length === 0 ? <div className="empty-state">No scoped actions or rows currently need review.</div> : (
         <div className="review-queue-layout">
           <div className="review-queue-groups">
             {itemsByGroup.map(({ group, items: groupItems }) => (
@@ -181,6 +182,17 @@ export default function ReviewQueue({
                       {item.kind === "document" && item.parameterId && <button className="btn btn-secondary" onClick={() => onSelectParameter(item.parameterId!)}>Open detail panel</button>}
                       {item.kind === "document" && item.parameterId && <button className="btn btn-secondary" onClick={() => onMarkDocumentNotApplicable(item.parameterId!)}>Mark not applicable</button>}
                       {item.kind === "multiple" && item.pageNumber !== null && item.rowIndex !== null && <button className="btn btn-secondary" onClick={() => onSelect(item.pageNumber!, item.rowIndex!)}>Review in document</button>}
+                      {item.kind === "multiple" && item.parameterId && item.matches && (
+                        <div className="multiple-match-options" aria-label={`Candidate matches for ${item.label}`}>
+                          {item.matches.map((match) => (
+                            <div key={`${match.page_number}-${match.row_index}`} className="multiple-match-option">
+                              <div><strong>Page {match.page_number}</strong> · Actual: {present(match.actual_value) ?? "—"} · Target: {present(match.target_value) ?? "—"} · Units: {present(match.units) ?? "—"} · Source: {present(match.source_label) ?? "—"} · Confidence: {confidenceLabel(match.extraction_confidence)}</div>
+                              <div className="review-card-reason">{present(match.nearby_text) ?? "No nearby text"}</div>
+                              <button className="btn btn-success" onClick={() => item.parameterId && onSelectScopedMatch(item.parameterId, { page_number: match.page_number, row_index: match.row_index })}>Use this match</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </article>
                 ))}

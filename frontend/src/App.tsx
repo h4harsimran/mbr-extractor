@@ -6,7 +6,7 @@ import UploadPreflight from "./components/UploadPreflight";
 import { bytesToMb, extractionConfig } from "./config/extraction";
 import { buildScopeFromApi, extractPageFromApi } from "./lib/extraction-client";
 import { loadPdf, renderPage } from "./lib/pdf-renderer";
-import type { AppState, ExtractedRow, ExtractionMode, PageExtraction, PagePreview, PageProgress, ReviewStatus, ScopedExtractionPlan, ScopedExtractionResult, ScopedPageExtraction, UploadPreflight as UploadPreflightData } from "./types";
+import type { AppState, ExtractedRow, ExtractionMode, PageExtraction, PagePreview, PageProgress, ReviewStatus, ScopedDocumentReviewStatus, ScopedExtractionPlan, ScopedSelectedMatch, ScopedExtractionResult, ScopedPageExtraction, UploadPreflight as UploadPreflightData } from "./types";
 import { validateScopedExtractionPlan } from "./lib/scope-validation";
 
 const SESSION_KEY = "mbr-session";
@@ -34,6 +34,8 @@ export default function App() {
   const [rawParameters, setRawParameters] = useState<string>(() => saved?.rawParameters || "");
   const [documentContext, setDocumentContext] = useState<string>(() => saved?.documentContext || "");
   const [scopedPlan, setScopedPlan] = useState<ScopedExtractionPlan | null>(() => saved?.scopedPlan || null);
+  const [scopedDocumentReviewStatuses, setScopedDocumentReviewStatuses] = useState<Record<string, ScopedDocumentReviewStatus>>(() => saved?.scopedDocumentReviewStatuses || {});
+  const [scopedSelectedMatches, setScopedSelectedMatches] = useState<Record<string, ScopedSelectedMatch>>(() => saved?.scopedSelectedMatches || {});
   const [scopeApproved, setScopeApproved] = useState<boolean>(() => saved?.scopeApproved || false);
   const [scopeLoading, setScopeLoading] = useState(false);
   const [scopeWarnings, setScopeWarnings] = useState<string[]>([]);
@@ -104,6 +106,8 @@ export default function App() {
     if (!targetPages) {
       setPages(initializePages(preflight.pageCount));
       setPagePreviews([]);
+      setScopedDocumentReviewStatuses({});
+      setScopedSelectedMatches({});
     } else {
       setPages((prev) =>
         prev.map((page) =>
@@ -188,6 +192,8 @@ export default function App() {
     setPagePreviews([]);
     setIsRestoringPreviews(false);
     setRestorePreviewsError(null);
+    setScopedDocumentReviewStatuses({});
+    setScopedSelectedMatches({});
   }, []);
 
   const handleUpdateRow = useCallback((pageNumber: number, rowIndex: number, field: keyof ExtractedRow, value: string | boolean | number) => {
@@ -326,11 +332,11 @@ export default function App() {
     // Page previews contain rendered PDF images/data URLs and are intentionally excluded from session persistence.
     // They stay in React memory only so reload/restore never writes page images, base64, or data URLs to localStorage.
     if (appState !== "upload") {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ appState, pages, filename, startTime, extractionMode, rawParameters, documentContext, scopedPlan, scopeApproved }));
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ appState, pages, filename, startTime, extractionMode, rawParameters, documentContext, scopedPlan, scopeApproved, scopedDocumentReviewStatuses, scopedSelectedMatches }));
     } else {
       localStorage.removeItem(SESSION_KEY);
     }
-  }, [appState, pages, filename, startTime, extractionMode, rawParameters, documentContext, scopedPlan, scopeApproved]);
+  }, [appState, pages, filename, startTime, extractionMode, rawParameters, documentContext, scopedPlan, scopeApproved, scopedDocumentReviewStatuses, scopedSelectedMatches]);
 
   const completedExtractions: PageExtraction[] = pages.filter((p) => p.status === "completed" && p.extraction).map((p) => p.extraction!);
   const completedScopedExtractions: ScopedPageExtraction[] = pages.filter((p) => p.status === "completed" && p.scopedExtraction).map((p) => p.scopedExtraction!);
@@ -383,6 +389,10 @@ export default function App() {
             onReset={handleReset}
             onUpdateRow={handleUpdateRow}
             onUpdateScopedRow={handleUpdateScopedRow}
+            scopedDocumentReviewStatuses={scopedDocumentReviewStatuses}
+            scopedSelectedMatches={scopedSelectedMatches}
+            onScopedDocumentReviewStatusChange={(parameterId, status) => setScopedDocumentReviewStatuses((prev) => ({ ...prev, [parameterId]: status }))}
+            onScopedSelectedMatchChange={(parameterId, selectedMatch) => setScopedSelectedMatches((prev) => ({ ...prev, [parameterId]: selectedMatch }))}
             pagePreviews={pagePreviews}
             scopedPlan={scopedPlan}
             onRetryPage={(pageNumber) => processPages([pageNumber])}
